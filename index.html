@@ -26,12 +26,11 @@
             margin-bottom: 20px;
         }
         .header h1 { font-size: 18px; font-weight: 700; color: #FFE600; }
-        .fecha { 
-            background: #FF6B00; color: white; padding: 4px 12px; 
-            border-radius: 16px; font-size: 11px; font-weight: 700; 
+        .fecha {
+            background: #FF6B00; color: white; padding: 4px 12px;
+            border-radius: 16px; font-size: 11px; font-weight: 700;
         }
 
-        /* GRAN NUMERO CENTRAL */
         .big-number {
             text-align: center;
             padding: 28px 20px;
@@ -52,7 +51,6 @@
             margin-top: 6px;
         }
 
-        /* DESGLOSE */
         .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
 
         .card {
@@ -101,7 +99,6 @@
         .row-num { font-size: 22px; font-weight: 700; color: #FFE600; }
         .row-num.zero { color: #3a3a4a; font-size: 20px; }
 
-        /* LOADING */
         .loading {
             text-align: center;
             padding: 50px 20px;
@@ -118,7 +115,6 @@
         .load-text { color: #FFE600; font-size: 14px; }
         .load-sub { color: #8888a0; font-size: 11px; margin-top: 4px; }
 
-        /* FOOTER */
         .footer {
             text-align: center;
             margin-top: 16px;
@@ -183,90 +179,113 @@
             return id;
         }
 
-        function esPendienteSinDespachar(shipping) {
-            const status = (shipping.status || '').toLowerCase();
-            const history = shipping.status_history || {};
-            // No fue despachado (no tiene date_shipped), no está cancelado, no entregado
-            if (status === 'cancelled') return false;
-            if (history.date_shipped) return false;
-            if (history.date_delivered) return false;
-            return true;
+        function getProximoDiaHabil() {
+            const hoy = new Date();
+            const dia = hoy.getDay();
+            const target = new Date();
+            if (dia === 5) target.setDate(target.getDate() + 3);
+            else if (dia === 6) target.setDate(target.getDate() + 2);
+            else if (dia === 0) target.setDate(target.getDate() + 1);
+            else target.setDate(target.getDate() + 1);
+            target.setHours(0, 0, 0, 0);
+            return target;
         }
 
-        function getTipo(shipping) {
-            return (shipping.logistic_type || '').toLowerCase() === 'self_service' ? 'flex' : 'colecta';
-        }
-
-        function esEntregaParaFecha(shipping, target) {
-            const f = shipping.shipping_option?.estimated_delivery_time?.date ||
-                      shipping.shipping_option?.estimated_delivery_final?.date;
-            if (!f) return false;
-            const d = new Date(f);
-            d.setHours(0,0,0,0);
-            return d.getTime() === target.getTime();
+        function getLabelFecha(fecha) {
+            const dias = ['Domingo', 'Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes', 'Sábado'];
+            return `${dias[fecha.getDay()]} ${fecha.getDate()}/${fecha.getMonth() + 1}`;
         }
 
         async function cargarCuenta(cuenta, token, targetDate) {
             const sellerId = await getSellerId(cuenta);
-            if (!sellerId) return [];
+            if (!sellerId) return { flex: 0, colecta: 0 };
 
-            const from = new Date(targetDate); from.setDate(from.getDate() - 3);
-            const to = new Date(targetDate); to.setDate(to.getDate() + 1); to.setHours(23,59,59,0);
-            const fromStr = from.toISOString().split('.')[0] + '.000-00:00';
-            const toStr = to.toISOString().split('.')[0] + '.000-00:00';
-            const df = `&order.date_created.from=${encodeURIComponent(fromStr)}&order.date_created.to=${encodeURIComponent(toStr)}`;
+            const targetStr = targetDate.toISOString().split('T')[0];
 
-            const pages = [];
-            for (let p = 0; p < 20; p++) {
-                pages.push(
-                    fetch(`${cuenta.proxy}/api/orders/search?seller=${sellerId}&offset=${p*50}&limit=50&sort=date_desc${df}`, {
-                        headers: { 'Authorization': `Bearer ${token}` }
-                    }).then(r => r.json()).catch(() => ({ results: [] }))
-                );
-            }
-            const allPages = await Promise.all(pages);
-            const orders = allPages.flatMap(p => p.results || []);
+            const from = new Date(targetDate); from.setDate(from.getDate() - 5); from.setHours(0, 0, 0, 0);
+            const to = new Date(targetDate); to.setDate(to.getDate() + 1); to.setHours(23, 59, 59, 0);
+            const df = `&order.date_created.from=${encodeURIComponent(from.toISOString().split('.')[0] + '.000-00:00')}&order.date_created.to=${encodeURIComponent(to.toISOString().split('.')[0] + '.000-00:00')}`;
 
-            const shipResults = await Promise.all(orders.map(async (order) => {
+            // Paginar todas las órdenes
+            let allOrders = [];
+            let page = 0;
+            let hasMore = true;
+            while (hasMore) {
                 try {
-                    const sid = order.shipping?.id;
-                    if (!sid) return null;
-                    const r = await fetch(`${cuenta.proxy}/api/shipments/${sid}`, {
+                    const r = await fetch(`${cuenta.proxy}/api/orders/search?seller=${sellerId}&offset=${page * 50}&limit=50&sort=date_desc${df}`, {
                         headers: { 'Authorization': `Bearer ${token}` }
                     });
-                    const shipping = await r.json();
-                    if (!esEntregaParaFecha(shipping, targetDate)) return null;
-                    if (!esPendienteSinDespachar(shipping)) return null;
-                    return { sid: shipping.id, tipo: getTipo(shipping) };
-                } catch { return null; }
-            }));
+                    const d = await r.json();
+                    const results = d.results || [];
+                    allOrders.push(...results);
 
-            // Dedup
+                    const sub = document.getElementById('loadSub');
+                    if (sub) sub.textContent = `${cuenta.nombre}: ${allOrders.length} órdenes...`;
+
+                    if (results.length < 50 || allOrders.length >= (d.paging?.total || 9999)) hasMore = false;
+                } catch { hasMore = false; }
+                page++;
+                if (page >= 40) hasMore = false;
+            }
+
+            // Revisar shippings en lotes de 10
             const seen = new Set();
-            return shipResults.filter(r => {
-                if (!r || seen.has(r.sid)) return false;
-                seen.add(r.sid);
-                return true;
-            });
+            let flex = 0, colecta = 0;
+            let revisados = 0;
+
+            for (let i = 0; i < allOrders.length; i += 10) {
+                const batch = allOrders.slice(i, i + 10);
+                const results = await Promise.all(batch.map(async (order) => {
+                    const sid = order.shipping?.id;
+                    if (!sid || seen.has(sid)) return null;
+                    seen.add(sid);
+                    try {
+                        const r = await fetch(`${cuenta.proxy}/api/shipments/${sid}`, {
+                            headers: { 'Authorization': `Bearer ${token}` }
+                        });
+                        return await r.json();
+                    } catch { return null; }
+                }));
+
+                for (const ship of results) {
+                    if (!ship) continue;
+                    revisados++;
+                    if (ship.status !== 'ready_to_ship') continue;
+                    if (ship.status_history?.date_shipped) continue;
+
+                    const fechaEnt = (ship.shipping_option?.estimated_delivery_time?.date ||
+                                     ship.shipping_option?.estimated_delivery_final?.date || '').split('T')[0];
+                    if (fechaEnt !== targetStr) continue;
+
+                    if (ship.logistic_type === 'self_service') {
+                        // Flex: ready_to_ship sin date_shipped
+                        flex++;
+                    } else {
+                        // Colecta: solo in_packing_list (in_hub = ya despachadas)
+                        if (ship.substatus === 'in_packing_list') {
+                            colecta++;
+                        }
+                    }
+                }
+
+                const sub = document.getElementById('loadSub');
+                if (sub) sub.textContent = `${cuenta.nombre}: revisando envíos ${revisados}...`;
+            }
+
+            return { flex, colecta };
         }
 
         async function cargar() {
-            const hoy = new Date();
-            const dia = hoy.getDay();
-            let fecha = new Date();
-            let label = 'HOY';
-            if (dia === 0) { fecha.setDate(fecha.getDate() + 1); label = 'LUNES'; }
-            else if (dia === 6) { fecha.setDate(fecha.getDate() + 2); label = 'LUNES'; }
-            fecha.setHours(0,0,0,0);
-
+            const target = getProximoDiaHabil();
+            const label = getLabelFecha(target);
             document.getElementById('fechaLabel').textContent = `📅 ${label}`;
 
             const resultado = {};
-            let totalGlobal = 0;
+            let totalFlex = 0, totalColecta = 0;
 
             for (const cuenta of CUENTAS) {
                 const sub = document.getElementById('loadSub');
-                if (sub) sub.textContent = `${cuenta.nombre}...`;
+                if (sub) sub.textContent = `Conectando ${cuenta.nombre}...`;
 
                 try {
                     const token = await getToken(cuenta);
@@ -274,27 +293,25 @@
                         resultado[cuenta.nombre] = { flex: 0, colecta: 0, color: cuenta.color, error: true };
                         continue;
                     }
-                    const items = await cargarCuenta(cuenta, token, fecha);
-                    const flex = items.filter(i => i.tipo === 'flex').length;
-                    const colecta = items.filter(i => i.tipo === 'colecta').length;
-                    resultado[cuenta.nombre] = { flex, colecta, color: cuenta.color };
-                    totalGlobal += flex + colecta;
+                    const counts = await cargarCuenta(cuenta, token, target);
+                    resultado[cuenta.nombre] = { ...counts, color: cuenta.color };
+                    totalFlex += counts.flex;
+                    totalColecta += counts.colecta;
                 } catch (e) {
                     resultado[cuenta.nombre] = { flex: 0, colecta: 0, color: cuenta.color, error: true };
                 }
             }
 
-            render(resultado, totalGlobal, label);
+            render(resultado, totalFlex, totalColecta);
         }
 
-        function render(data, total, label) {
-            let flexTotal = 0, colectaTotal = 0;
-            Object.values(data).forEach(d => { flexTotal += d.flex; colectaTotal += d.colecta; });
+        function render(data, totalFlex, totalColecta) {
+            const total = totalFlex + totalColecta;
 
             let html = `
                 <div class="big-number">
                     <div class="num">${total}</div>
-                    <div class="sub">paquetes para imprimir · ${flexTotal} Flex · ${colectaTotal} Colecta</div>
+                    <div class="sub">paquetes para imprimir · ${totalFlex} Flex · ${totalColecta} Colecta</div>
                 </div>
                 <div class="grid">
             `;
@@ -325,7 +342,7 @@
             html += `</div>`;
 
             const now = new Date();
-            html += `<div class="footer">${now.toLocaleString('es-AR', { timeZone:'America/Argentina/Buenos_Aires', hour:'2-digit', minute:'2-digit', hour12:false })} hs · <a onclick="location.reload()">Recargar</a></div>`;
+            html += `<div class="footer">${now.toLocaleString('es-AR', { timeZone: 'America/Argentina/Buenos_Aires', hour: '2-digit', minute: '2-digit', hour12: false })} hs · <a onclick="location.reload()">Recargar</a></div>`;
 
             document.getElementById('content').innerHTML = html;
         }
