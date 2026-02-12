@@ -1,0 +1,1155 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>📦 Control de Envíos - Mikra + Chaya</title>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,300;0,9..40,500;0,9..40,700;1,9..40,400&display=swap');
+
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+
+        :root {
+            --bg: #0f0f13;
+            --surface: #1a1a22;
+            --surface2: #22222e;
+            --border: #2a2a3a;
+            --text: #e8e8ef;
+            --text-dim: #8888a0;
+            --yellow: #FFE600;
+            --mikra: #9C27B0;
+            --mikra-glow: rgba(156, 39, 176, 0.25);
+            --chaya: #FF6B00;
+            --chaya-glow: rgba(255, 107, 0, 0.25);
+            --blue: #3483FA;
+            --green: #00ff88;
+            --cyan: #00d9ff;
+            --orange: #FF9800;
+            --red: #f44336;
+            --pending: #9C27B0;
+            --shipped: #00d9ff;
+            --delivered: #00ff88;
+            --rescheduled: #FF9800;
+        }
+
+        body {
+            font-family: 'DM Sans', sans-serif;
+            background: var(--bg);
+            color: var(--text);
+            min-height: 100vh;
+        }
+
+        .app {
+            max-width: 900px;
+            margin: 0 auto;
+            padding: 16px;
+        }
+
+        /* HEADER */
+        .header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            margin-bottom: 20px;
+            flex-wrap: wrap;
+            gap: 10px;
+        }
+
+        .header-left {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .header h1 {
+            font-size: 20px;
+            font-weight: 700;
+            color: var(--yellow);
+            letter-spacing: -0.5px;
+        }
+
+        .version {
+            background: var(--blue);
+            color: white;
+            padding: 3px 10px;
+            border-radius: 20px;
+            font-size: 10px;
+            font-weight: 700;
+            letter-spacing: 0.5px;
+        }
+
+        .fecha-badge {
+            background: linear-gradient(135deg, #FF6B00, #ff8f3f);
+            color: white;
+            padding: 6px 14px;
+            border-radius: 20px;
+            font-size: 12px;
+            font-weight: 700;
+        }
+
+        .header-actions {
+            display: flex;
+            gap: 8px;
+            align-items: center;
+        }
+
+        /* BUTTONS */
+        button {
+            font-family: 'DM Sans', sans-serif;
+            border: none;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+
+        button:hover { transform: scale(1.03); }
+        button:active { transform: scale(0.97); }
+
+        .btn {
+            padding: 8px 16px;
+            border-radius: 8px;
+            font-size: 13px;
+            font-weight: 600;
+            color: white;
+        }
+
+        .btn-primary { background: var(--blue); }
+        .btn-warning { background: var(--orange); }
+        .btn-icon {
+            background: var(--surface);
+            border: 2px solid var(--border);
+            color: var(--text);
+            padding: 6px 12px;
+            border-radius: 8px;
+            font-size: 16px;
+        }
+
+        /* TOOLS PANEL */
+        .tools-panel {
+            display: none;
+            background: var(--surface);
+            border: 1px solid var(--border);
+            border-radius: 12px;
+            padding: 14px;
+            margin-bottom: 16px;
+        }
+
+        .tools-panel.open { display: block; }
+
+        .tools-row {
+            display: flex;
+            gap: 8px;
+            flex-wrap: wrap;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .tools-label {
+            font-size: 11px;
+            color: var(--text-dim);
+            text-align: center;
+            margin-bottom: 8px;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+        }
+
+        input[type="date"] {
+            font-family: 'DM Sans', sans-serif;
+            padding: 7px 10px;
+            background: var(--bg);
+            border: 2px solid var(--border);
+            border-radius: 8px;
+            color: var(--text);
+            font-size: 12px;
+        }
+
+        /* LOADING */
+        .loading-screen {
+            text-align: center;
+            padding: 60px 20px;
+        }
+
+        .spinner {
+            width: 44px;
+            height: 44px;
+            border: 4px solid var(--border);
+            border-top-color: var(--yellow);
+            border-radius: 50%;
+            animation: spin 0.8s linear infinite;
+            margin: 0 auto 16px;
+        }
+
+        @keyframes spin { to { transform: rotate(360deg); } }
+
+        .loading-text {
+            color: var(--yellow);
+            font-size: 15px;
+            font-weight: 500;
+        }
+
+        .loading-sub {
+            color: var(--text-dim);
+            font-size: 12px;
+            margin-top: 6px;
+        }
+
+        /* RESUMEN TOTAL */
+        .resumen-total {
+            background: var(--surface);
+            border: 1px solid var(--border);
+            border-radius: 14px;
+            padding: 18px;
+            margin-bottom: 16px;
+        }
+
+        .resumen-titulo {
+            font-size: 13px;
+            color: var(--text-dim);
+            font-weight: 500;
+            margin-bottom: 14px;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .resumen-grid {
+            display: grid;
+            grid-template-columns: repeat(5, 1fr);
+            gap: 10px;
+        }
+
+        .resumen-stat {
+            text-align: center;
+            padding: 12px 6px;
+            border-radius: 10px;
+            background: var(--bg);
+            border: 1px solid var(--border);
+            transition: all 0.2s;
+        }
+
+        .resumen-stat:hover {
+            border-color: var(--text-dim);
+        }
+
+        .resumen-stat .numero {
+            font-size: 28px;
+            font-weight: 700;
+            line-height: 1;
+            margin-bottom: 4px;
+        }
+
+        .resumen-stat .label {
+            font-size: 10px;
+            color: var(--text-dim);
+            font-weight: 500;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+
+        .numero.total { color: var(--yellow); }
+        .numero.pendiente { color: var(--pending); }
+        .numero.en-camino { color: var(--shipped); }
+        .numero.entregado { color: var(--delivered); }
+        .numero.reprogramado { color: var(--rescheduled); }
+
+        /* BARRA PROGRESO */
+        .progress-container {
+            background: var(--bg);
+            border-radius: 20px;
+            height: 28px;
+            overflow: hidden;
+            margin-top: 14px;
+        }
+
+        .progress-bar {
+            height: 100%;
+            display: flex;
+        }
+
+        .progress-seg {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 11px;
+            font-weight: 700;
+            transition: width 0.5s ease;
+            min-width: 0;
+        }
+
+        .progress-seg.pendiente { background: var(--pending); color: white; }
+        .progress-seg.en-camino { background: var(--shipped); color: #000; }
+        .progress-seg.entregado { background: var(--delivered); color: #000; }
+        .progress-seg.reprogramado { background: var(--rescheduled); color: #000; }
+
+        /* CUENTA CARD */
+        .cuenta-card {
+            border-radius: 14px;
+            padding: 18px;
+            margin-bottom: 14px;
+            border: 1px solid;
+            position: relative;
+            overflow: hidden;
+        }
+
+        .cuenta-card::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            height: 3px;
+        }
+
+        .cuenta-card.mikra {
+            background: linear-gradient(180deg, rgba(156, 39, 176, 0.08) 0%, var(--surface) 40%);
+            border-color: rgba(156, 39, 176, 0.3);
+        }
+
+        .cuenta-card.mikra::before { background: var(--mikra); }
+
+        .cuenta-card.chaya {
+            background: linear-gradient(180deg, rgba(255, 107, 0, 0.08) 0%, var(--surface) 40%);
+            border-color: rgba(255, 107, 0, 0.3);
+        }
+
+        .cuenta-card.chaya::before { background: var(--chaya); }
+
+        .cuenta-header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            margin-bottom: 16px;
+        }
+
+        .cuenta-nombre {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            font-size: 17px;
+            font-weight: 700;
+        }
+
+        .cuenta-dot {
+            width: 12px;
+            height: 12px;
+            border-radius: 50%;
+        }
+
+        .cuenta-dot.mikra { background: var(--mikra); box-shadow: 0 0 10px var(--mikra-glow); }
+        .cuenta-dot.chaya { background: var(--chaya); box-shadow: 0 0 10px var(--chaya-glow); }
+
+        .cuenta-total-badge {
+            font-size: 14px;
+            font-weight: 700;
+            padding: 4px 14px;
+            border-radius: 20px;
+            color: white;
+        }
+
+        .cuenta-total-badge.mikra { background: var(--mikra); }
+        .cuenta-total-badge.chaya { background: var(--chaya); }
+
+        /* TIPO ENVIO ROW */
+        .tipo-section {
+            margin-bottom: 12px;
+        }
+
+        .tipo-section:last-child { margin-bottom: 0; }
+
+        .tipo-header {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            margin-bottom: 10px;
+            padding-bottom: 6px;
+            border-bottom: 1px solid var(--border);
+        }
+
+        .tipo-icon {
+            font-size: 18px;
+        }
+
+        .tipo-nombre {
+            font-size: 14px;
+            font-weight: 600;
+            flex: 1;
+        }
+
+        .tipo-total {
+            font-size: 13px;
+            font-weight: 700;
+            color: var(--yellow);
+            background: rgba(255, 230, 0, 0.1);
+            padding: 2px 10px;
+            border-radius: 12px;
+        }
+
+        .estado-row {
+            display: grid;
+            grid-template-columns: repeat(4, 1fr);
+            gap: 8px;
+        }
+
+        .estado-chip {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            padding: 8px 10px;
+            border-radius: 8px;
+            background: var(--bg);
+            border: 1px solid var(--border);
+        }
+
+        .estado-chip .emoji { font-size: 14px; }
+
+        .estado-chip .count {
+            font-size: 18px;
+            font-weight: 700;
+            line-height: 1;
+        }
+
+        .estado-chip .estado-name {
+            font-size: 9px;
+            color: var(--text-dim);
+            text-transform: uppercase;
+            letter-spacing: 0.3px;
+        }
+
+        .estado-chip .count.pendiente { color: var(--pending); }
+        .estado-chip .count.en-camino { color: var(--shipped); }
+        .estado-chip .count.entregado { color: var(--delivered); }
+        .estado-chip .count.reprogramado { color: var(--rescheduled); }
+
+        /* SIN DATOS */
+        .sin-datos {
+            text-align: center;
+            color: var(--text-dim);
+            font-size: 13px;
+            padding: 20px;
+            font-style: italic;
+        }
+
+        /* ERROR */
+        .error-msg {
+            background: rgba(244, 67, 54, 0.1);
+            border: 1px solid rgba(244, 67, 54, 0.3);
+            color: var(--red);
+            padding: 16px;
+            border-radius: 10px;
+            text-align: center;
+            font-size: 14px;
+        }
+
+        /* LAST UPDATE */
+        .last-update {
+            text-align: center;
+            font-size: 11px;
+            color: var(--text-dim);
+            margin-top: 14px;
+            padding: 8px;
+        }
+
+        .refresh-link {
+            color: var(--blue);
+            cursor: pointer;
+            text-decoration: underline;
+        }
+
+        /* CANCELADAS */
+        .canceladas-bar {
+            display: flex;
+            justify-content: center;
+            gap: 8px;
+            margin-top: 12px;
+            padding-top: 12px;
+            border-top: 1px dashed var(--border);
+        }
+
+        .cancel-chip {
+            font-size: 11px;
+            color: var(--red);
+            background: rgba(244, 67, 54, 0.1);
+            border: 1px solid rgba(244, 67, 54, 0.2);
+            padding: 3px 10px;
+            border-radius: 12px;
+        }
+
+        /* RESPONSIVE */
+        @media (max-width: 600px) {
+            .resumen-grid {
+                grid-template-columns: repeat(3, 1fr);
+            }
+
+            .resumen-grid .resumen-stat:nth-child(4),
+            .resumen-grid .resumen-stat:nth-child(5) {
+                grid-column: span 1;
+            }
+
+            .estado-row {
+                grid-template-columns: repeat(2, 1fr);
+            }
+
+            .resumen-stat .numero {
+                font-size: 22px;
+            }
+
+            .header h1 { font-size: 17px; }
+        }
+
+        /* IMPRIMIR NOTE */
+        .print-note {
+            background: linear-gradient(135deg, rgba(52, 131, 250, 0.1), rgba(52, 131, 250, 0.05));
+            border: 1px solid rgba(52, 131, 250, 0.2);
+            border-radius: 10px;
+            padding: 12px 16px;
+            margin-bottom: 16px;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            font-size: 13px;
+            color: var(--text-dim);
+        }
+
+        .print-note .note-icon {
+            font-size: 20px;
+        }
+
+        .print-note strong {
+            color: var(--text);
+        }
+
+        /* CUENTA FILTER TABS */
+        .cuenta-tabs {
+            display: flex;
+            gap: 6px;
+            justify-content: center;
+            margin-bottom: 16px;
+        }
+
+        .cuenta-tab {
+            padding: 7px 16px;
+            border-radius: 20px;
+            font-size: 12px;
+            font-weight: 600;
+            background: var(--surface);
+            color: var(--text-dim);
+            border: 2px solid var(--border);
+            transition: all 0.2s;
+        }
+
+        .cuenta-tab:hover {
+            border-color: var(--text-dim);
+        }
+
+        .cuenta-tab.active {
+            border-color: var(--yellow);
+            color: var(--yellow);
+            background: rgba(255, 230, 0, 0.08);
+        }
+    </style>
+</head>
+<body>
+    <div class="app">
+        <!-- HEADER -->
+        <div class="header">
+            <div class="header-left">
+                <h1>📦 Control de Envíos</h1>
+                <span class="version">v1.0</span>
+            </div>
+            <div class="header-actions">
+                <span class="fecha-badge" id="fechaBadge">📅 ...</span>
+                <button class="btn-icon" onclick="toggleTools()" title="Herramientas">⚙️</button>
+            </div>
+        </div>
+
+        <!-- TOOLS PANEL -->
+        <div class="tools-panel" id="toolsPanel">
+            <div class="tools-label">Herramientas</div>
+            <div class="tools-row">
+                <button class="btn btn-primary" onclick="cargarHoy()" style="font-size:12px; padding:7px 14px;">📅 Hoy</button>
+                <button class="btn btn-warning" onclick="cargarDiaAnterior()" style="font-size:12px; padding:7px 14px;">📅 <span id="diaAnteriorLabel">Ayer</span></button>
+                <div style="display:flex; gap:4px; align-items:center;">
+                    <input type="date" id="fechaCustom">
+                    <button class="btn" style="background:var(--mikra); font-size:12px; padding:7px 12px;" onclick="cargarFechaCustom()">Buscar</button>
+                </div>
+                <button class="btn" style="background: var(--surface2); border:1px solid var(--border); font-size:12px; padding:7px 14px;" onclick="cargarDatos()">🔄 Recargar</button>
+            </div>
+        </div>
+
+        <!-- MAIN CONTENT -->
+        <div id="mainContent">
+            <div class="loading-screen">
+                <div class="spinner"></div>
+                <div class="loading-text">Cargando envíos...</div>
+                <div class="loading-sub" id="loadingSub">Conectando con MercadoLibre</div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // ===================== CONFIGURACIÓN =====================
+        const CUENTAS = [
+            {
+                nombre: 'Mikra',
+                clientId: '6723747350775490',
+                proxy: 'https://mikra-flex-proxy.rafaelassir.workers.dev',
+                color: 'mikra'
+            },
+            {
+                nombre: 'Chaya',
+                clientId: '1942700449315778',
+                proxy: 'https://chaya-flex-proxy.rafaelassir.workers.dev',
+                color: 'chaya'
+            }
+        ];
+
+        let dashboardData = null;
+        let currentLabel = 'HOY';
+
+        // ===================== AUTH =====================
+        async function obtenerTokenCuenta(cuenta) {
+            try {
+                const response = await fetch(`${cuenta.proxy}/get-token`);
+                const data = await response.json();
+                if (data.access_token) {
+                    if (data.user_id) {
+                        sessionStorage.setItem(`${cuenta.nombre.toLowerCase()}_user_id`, data.user_id);
+                    }
+                    return data.access_token;
+                }
+                return null;
+            } catch (error) {
+                console.error(`Error token ${cuenta.nombre}:`, error);
+                return null;
+            }
+        }
+
+        async function getSellerId(cuenta) {
+            const key = `${cuenta.nombre.toLowerCase()}_user_id`;
+            let sellerId = sessionStorage.getItem(key);
+            if (!sellerId) {
+                try {
+                    const resp = await fetch(`${cuenta.proxy}/get-token`);
+                    const data = await resp.json();
+                    if (data.user_id) {
+                        sellerId = data.user_id;
+                        sessionStorage.setItem(key, sellerId);
+                    }
+                } catch (e) { }
+            }
+            return sellerId;
+        }
+
+        // ===================== DETECCIÓN DE TIPO =====================
+        function getLogisticType(shipping) {
+            const lt = (shipping.logistic_type || '').toLowerCase();
+            if (lt === 'self_service') return 'flex';
+            // Colecta: cross_docking, xd_drop_off, drop_off, default, fulfillment, etc.
+            return 'colecta';
+        }
+
+        function getOrderState(shipping) {
+            const status = (shipping.status || '').toLowerCase();
+            const substatus = (shipping.substatus || '').toLowerCase();
+            const history = shipping.status_history || {};
+            const tags = (shipping.tags || []).map(t => (t || '').toLowerCase());
+
+            // Reprogramados
+            if (['rescheduled', 'rescheduled_by_buyer', 'buyer_rescheduled', 'delayed',
+                 'returning_to_sender', 'waiting_for_withdrawal', 'receiver_absent',
+                 'out_of_delivery_area', 'not_delivered_and_returning', 'delivery_failed'].includes(substatus) ||
+                tags.includes('rescheduled') || tags.includes('delayed') || tags.includes('return_to_sender')) {
+                return 'reprogramado';
+            }
+
+            if (status === 'not_delivered' && !substatus.includes('cancel')) {
+                return 'reprogramado';
+            }
+
+            // Cancelados
+            if (status === 'cancelled' ||
+                ['cancelled', 'buyer_cancelled', 'cancelled_by_buyer', 'cancelled_manually'].includes(substatus) ||
+                tags.includes('cancelled') ||
+                (status === 'not_delivered' && substatus.includes('cancel'))) {
+                return 'cancelado';
+            }
+
+            if (history.date_delivered) return 'entregado';
+            if (history.date_shipped) return 'en-camino';
+            return 'pendiente';
+        }
+
+        function esEntregaParaFecha(shipping, targetDate) {
+            const fechaEntrega = shipping.shipping_option?.estimated_delivery_time?.date ||
+                                shipping.shipping_option?.estimated_delivery_final?.date;
+            if (!fechaEntrega) return false;
+            const entrega = new Date(fechaEntrega);
+            entrega.setHours(0, 0, 0, 0);
+            return entrega.getTime() === targetDate.getTime();
+        }
+
+        // ===================== CARGA DE DATOS =====================
+        async function cargarOrdenesDeCuenta(cuenta, token, targetDate) {
+            const sellerId = await getSellerId(cuenta);
+            if (!sellerId) return [];
+
+            const dateFrom = new Date(targetDate);
+            dateFrom.setDate(dateFrom.getDate() - 3);
+            const dateTo = new Date(targetDate);
+            dateTo.setDate(dateTo.getDate() + 1);
+            dateTo.setHours(23, 59, 59, 0);
+
+            const dateFromStr = dateFrom.toISOString().split('.')[0] + '.000-00:00';
+            const dateToStr = dateTo.toISOString().split('.')[0] + '.000-00:00';
+            const dateFilter = `&order.date_created.from=${encodeURIComponent(dateFromStr)}&order.date_created.to=${encodeURIComponent(dateToStr)}`;
+
+            // Paginación: hasta 20 páginas
+            const promises = [];
+            for (let page = 0; page < 20; page++) {
+                promises.push(
+                    fetch(`${cuenta.proxy}/api/orders/search?seller=${sellerId}&offset=${page * 50}&limit=50&sort=date_desc${dateFilter}`, {
+                        headers: { 'Authorization': `Bearer ${token}` }
+                    }).then(r => r.json()).catch(() => ({ results: [] }))
+                );
+            }
+
+            const pages = await Promise.all(promises);
+            const allOrders = pages.flatMap(p => p.results || []);
+
+            // Obtener detalles de shipping
+            const shippingPromises = allOrders.map(async (order) => {
+                try {
+                    const shippingId = order.shipping?.id;
+                    if (!shippingId) return null;
+
+                    const resp = await fetch(`${cuenta.proxy}/api/shipments/${shippingId}`, {
+                        headers: { 'Authorization': `Bearer ${token}` }
+                    });
+                    const shipping = await resp.json();
+
+                    // Aceptar tanto flex como colecta — filtrar solo por fecha
+                    const lt = getLogisticType(shipping);
+
+                    // Para flex: misma lógica original (solo fecha target o cancelados)
+                    if (lt === 'flex') {
+                        if (esEntregaParaFecha(shipping, targetDate) ||
+                            shipping.status === 'cancelled' ||
+                            shipping.status === 'not_delivered') {
+                            return { order, shipping, tipo: 'flex' };
+                        }
+                        return null;
+                    }
+
+                    // Para colecta: solo los que tienen entrega para la fecha
+                    if (esEntregaParaFecha(shipping, targetDate) ||
+                        shipping.status === 'cancelled' ||
+                        shipping.status === 'not_delivered') {
+                        return { order, shipping, tipo: 'colecta' };
+                    }
+
+                    return null;
+                } catch (e) {
+                    return null;
+                }
+            });
+
+            const results = await Promise.all(shippingPromises);
+            const valid = results.filter(r => r !== null);
+
+            // Deduplicar por shipping ID
+            const unique = new Map();
+            valid.forEach(({ order, shipping, tipo }) => {
+                const sid = shipping.id;
+                if (!unique.has(sid)) {
+                    unique.set(sid, { orders: [order], shipping, tipo });
+                } else {
+                    unique.get(sid).orders.push(order);
+                }
+            });
+
+            return Array.from(unique.values());
+        }
+
+        async function cargarDatosPorFecha(targetDate, label) {
+            const mainContent = document.getElementById('mainContent');
+            mainContent.innerHTML = `
+                <div class="loading-screen">
+                    <div class="spinner"></div>
+                    <div class="loading-text">Cargando envíos de ${label}...</div>
+                    <div class="loading-sub" id="loadingSub">Conectando con MercadoLibre</div>
+                </div>
+            `;
+            currentLabel = label;
+            document.getElementById('fechaBadge').textContent = `📅 ${label}`;
+
+            const data = {
+                fecha: label,
+                cuentas: {}
+            };
+
+            const shippingIdsGlobal = new Set();
+
+            for (const cuenta of CUENTAS) {
+                const sub = document.getElementById('loadingSub');
+                if (sub) sub.textContent = `Cargando ${cuenta.nombre}...`;
+
+                try {
+                    const token = await obtenerTokenCuenta(cuenta);
+                    if (!token) {
+                        data.cuentas[cuenta.nombre] = { error: 'Sin token', flex: [], colecta: [] };
+                        continue;
+                    }
+
+                    const orders = await cargarOrdenesDeCuenta(cuenta, token, targetDate);
+
+                    // Filtrar duplicados globales
+                    const uniqueOrders = orders.filter(item => {
+                        const sid = item.shipping.id;
+                        if (shippingIdsGlobal.has(sid)) return false;
+                        shippingIdsGlobal.add(sid);
+                        return true;
+                    });
+
+                    // Filtrar canceladas que no son de la fecha
+                    const filtered = uniqueOrders.filter(item => {
+                        const state = getOrderState(item.shipping);
+                        if (state === 'cancelado') return esEntregaParaFecha(item.shipping, targetDate);
+                        return true;
+                    });
+
+                    const flex = filtered.filter(i => i.tipo === 'flex');
+                    const colecta = filtered.filter(i => i.tipo === 'colecta');
+
+                    data.cuentas[cuenta.nombre] = {
+                        flex,
+                        colecta,
+                        color: cuenta.color
+                    };
+                } catch (error) {
+                    console.error(`Error ${cuenta.nombre}:`, error);
+                    data.cuentas[cuenta.nombre] = { error: error.message, flex: [], colecta: [] };
+                }
+            }
+
+            dashboardData = data;
+            renderDashboard();
+        }
+
+        // ===================== RENDER =====================
+        function contarEstados(items) {
+            const counts = { pendiente: 0, 'en-camino': 0, entregado: 0, reprogramado: 0, cancelado: 0 };
+            items.forEach(item => {
+                const state = getOrderState(item.shipping);
+                if (counts[state] !== undefined) counts[state]++;
+            });
+            counts.total = counts.pendiente + counts['en-camino'] + counts.entregado + counts.reprogramado;
+            return counts;
+        }
+
+        function renderDashboard() {
+            if (!dashboardData) return;
+
+            // Totales globales
+            let allFlex = [];
+            let allColecta = [];
+
+            Object.values(dashboardData.cuentas).forEach(c => {
+                allFlex.push(...(c.flex || []));
+                allColecta.push(...(c.colecta || []));
+            });
+
+            const allItems = [...allFlex, ...allColecta];
+            const totalStats = contarEstados(allItems);
+            const flexStats = contarEstados(allFlex);
+            const colectaStats = contarEstados(allColecta);
+
+            let html = '';
+
+            // NOTA INFORMATIVA
+            const paraImprimir = totalStats.pendiente + totalStats['en-camino'];
+            if (paraImprimir > 0) {
+                html += `
+                    <div class="print-note">
+                        <span class="note-icon">🖨️</span>
+                        <div>
+                            <strong>${paraImprimir} envío${paraImprimir > 1 ? 's' : ''} para preparar/en camino</strong>
+                            — ${flexStats.pendiente + flexStats['en-camino']} Flex · ${colectaStats.pendiente + colectaStats['en-camino']} Colecta
+                        </div>
+                    </div>
+                `;
+            }
+
+            // RESUMEN TOTAL
+            html += `
+                <div class="resumen-total">
+                    <div class="resumen-titulo">
+                        📊 Resumen General — ${dashboardData.fecha}
+                    </div>
+                    <div class="resumen-grid">
+                        <div class="resumen-stat">
+                            <div class="numero total">${totalStats.total}</div>
+                            <div class="label">Total</div>
+                        </div>
+                        <div class="resumen-stat">
+                            <div class="numero pendiente">${totalStats.pendiente}</div>
+                            <div class="label">⏳ Pend.</div>
+                        </div>
+                        <div class="resumen-stat">
+                            <div class="numero en-camino">${totalStats['en-camino']}</div>
+                            <div class="label">🚚 Camino</div>
+                        </div>
+                        <div class="resumen-stat">
+                            <div class="numero entregado">${totalStats.entregado}</div>
+                            <div class="label">✅ Entreg.</div>
+                        </div>
+                        <div class="resumen-stat">
+                            <div class="numero reprogramado">${totalStats.reprogramado}</div>
+                            <div class="label">🔄 Reprog.</div>
+                        </div>
+                    </div>
+
+                    ${renderProgressBar(totalStats)}
+
+                    ${totalStats.cancelado > 0 ? `
+                        <div class="canceladas-bar">
+                            <span class="cancel-chip">❌ ${totalStats.cancelado} cancelada${totalStats.cancelado > 1 ? 's' : ''}</span>
+                        </div>
+                    ` : ''}
+                </div>
+            `;
+
+            // RESUMEN POR TIPO (Flex vs Colecta)
+            html += `
+                <div class="resumen-total" style="padding: 14px;">
+                    <div class="resumen-titulo" style="margin-bottom:10px;">
+                        🏍️ Flex vs 📮 Colecta
+                    </div>
+                    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px;">
+                        <div style="background: var(--bg); border-radius: 10px; padding: 12px; border: 1px solid var(--border);">
+                            <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom: 8px;">
+                                <span style="font-size: 13px; font-weight: 600;">🏍️ Flex</span>
+                                <span style="font-size: 18px; font-weight: 700; color: var(--yellow);">${flexStats.total}</span>
+                            </div>
+                            <div style="display:flex; gap:8px; flex-wrap:wrap; font-size:11px;">
+                                <span style="color:var(--pending);">⏳${flexStats.pendiente}</span>
+                                <span style="color:var(--shipped);">🚚${flexStats['en-camino']}</span>
+                                <span style="color:var(--delivered);">✅${flexStats.entregado}</span>
+                                <span style="color:var(--rescheduled);">🔄${flexStats.reprogramado}</span>
+                            </div>
+                        </div>
+                        <div style="background: var(--bg); border-radius: 10px; padding: 12px; border: 1px solid var(--border);">
+                            <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom: 8px;">
+                                <span style="font-size: 13px; font-weight: 600;">📮 Colecta</span>
+                                <span style="font-size: 18px; font-weight: 700; color: var(--yellow);">${colectaStats.total}</span>
+                            </div>
+                            <div style="display:flex; gap:8px; flex-wrap:wrap; font-size:11px;">
+                                <span style="color:var(--pending);">⏳${colectaStats.pendiente}</span>
+                                <span style="color:var(--shipped);">🚚${colectaStats['en-camino']}</span>
+                                <span style="color:var(--delivered);">✅${colectaStats.entregado}</span>
+                                <span style="color:var(--rescheduled);">🔄${colectaStats.reprogramado}</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            `;
+
+            // CARDS POR CUENTA
+            for (const [nombre, cuentaData] of Object.entries(dashboardData.cuentas)) {
+                const color = cuentaData.color || 'mikra';
+
+                if (cuentaData.error && !cuentaData.flex?.length && !cuentaData.colecta?.length) {
+                    html += `
+                        <div class="cuenta-card ${color}">
+                            <div class="cuenta-header">
+                                <div class="cuenta-nombre">
+                                    <span class="cuenta-dot ${color}"></span>
+                                    ${nombre}
+                                </div>
+                            </div>
+                            <div class="error-msg">⚠️ Error: ${cuentaData.error}</div>
+                        </div>
+                    `;
+                    continue;
+                }
+
+                const flex = cuentaData.flex || [];
+                const colecta = cuentaData.colecta || [];
+                const flexS = contarEstados(flex);
+                const colectaS = contarEstados(colecta);
+                const totalCuenta = flexS.total + colectaS.total;
+                const cancelCuenta = flexS.cancelado + colectaS.cancelado;
+
+                html += `
+                    <div class="cuenta-card ${color}">
+                        <div class="cuenta-header">
+                            <div class="cuenta-nombre">
+                                <span class="cuenta-dot ${color}"></span>
+                                ${nombre}
+                            </div>
+                            <span class="cuenta-total-badge ${color}">${totalCuenta} envíos</span>
+                        </div>
+
+                        ${renderTipoSection('🏍️ Flex', flex, flexS)}
+                        ${renderTipoSection('📮 Colecta', colecta, colectaS)}
+
+                        ${cancelCuenta > 0 ? `
+                            <div class="canceladas-bar">
+                                <span class="cancel-chip">❌ ${cancelCuenta} cancelada${cancelCuenta > 1 ? 's' : ''} (${flexS.cancelado} flex · ${colectaS.cancelado} colecta)</span>
+                            </div>
+                        ` : ''}
+                    </div>
+                `;
+            }
+
+            // Last update
+            const now = new Date();
+            html += `
+                <div class="last-update">
+                    Última carga: ${now.toLocaleString('es-AR', { timeZone: 'America/Argentina/Buenos_Aires', hour: '2-digit', minute: '2-digit', hour12: false })} hs
+                    · <span class="refresh-link" onclick="cargarDatos()">Recargar</span>
+                </div>
+            `;
+
+            document.getElementById('mainContent').innerHTML = html;
+        }
+
+        function renderTipoSection(nombre, items, stats) {
+            if (stats.total === 0 && stats.cancelado === 0) {
+                return `
+                    <div class="tipo-section">
+                        <div class="tipo-header">
+                            <span class="tipo-nombre">${nombre}</span>
+                            <span class="tipo-total">0</span>
+                        </div>
+                        <div class="sin-datos">Sin envíos</div>
+                    </div>
+                `;
+            }
+
+            return `
+                <div class="tipo-section">
+                    <div class="tipo-header">
+                        <span class="tipo-nombre">${nombre}</span>
+                        <span class="tipo-total">${stats.total}</span>
+                    </div>
+                    <div class="estado-row">
+                        <div class="estado-chip">
+                            <span class="emoji">⏳</span>
+                            <div>
+                                <div class="count pendiente">${stats.pendiente}</div>
+                                <div class="estado-name">Pend.</div>
+                            </div>
+                        </div>
+                        <div class="estado-chip">
+                            <span class="emoji">🚚</span>
+                            <div>
+                                <div class="count en-camino">${stats['en-camino']}</div>
+                                <div class="estado-name">Camino</div>
+                            </div>
+                        </div>
+                        <div class="estado-chip">
+                            <span class="emoji">✅</span>
+                            <div>
+                                <div class="count entregado">${stats.entregado}</div>
+                                <div class="estado-name">Entreg.</div>
+                            </div>
+                        </div>
+                        <div class="estado-chip">
+                            <span class="emoji">🔄</span>
+                            <div>
+                                <div class="count reprogramado">${stats.reprogramado}</div>
+                                <div class="estado-name">Reprog.</div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            `;
+        }
+
+        function renderProgressBar(stats) {
+            const total = stats.total || 1;
+            const pPct = (stats.pendiente / total) * 100;
+            const cPct = (stats['en-camino'] / total) * 100;
+            const ePct = (stats.entregado / total) * 100;
+            const rPct = (stats.reprogramado / total) * 100;
+
+            return `
+                <div class="progress-container">
+                    <div class="progress-bar">
+                        ${stats.pendiente > 0 ? `<div class="progress-seg pendiente" style="width:${pPct}%">${stats.pendiente}</div>` : ''}
+                        ${stats['en-camino'] > 0 ? `<div class="progress-seg en-camino" style="width:${cPct}%">${stats['en-camino']}</div>` : ''}
+                        ${stats.entregado > 0 ? `<div class="progress-seg entregado" style="width:${ePct}%">${stats.entregado}</div>` : ''}
+                        ${stats.reprogramado > 0 ? `<div class="progress-seg reprogramado" style="width:${rPct}%">${stats.reprogramado}</div>` : ''}
+                    </div>
+                </div>
+            `;
+        }
+
+        // ===================== NAVEGACIÓN =====================
+        function toggleTools() {
+            document.getElementById('toolsPanel').classList.toggle('open');
+        }
+
+        function getDiaAnteriorLaborable() {
+            const hoy = new Date();
+            const dia = hoy.getDay();
+            let atras = 1;
+            if (dia === 0) atras = 2; // dom → vie
+            else if (dia === 1) atras = 3; // lun → vie
+            else if (dia === 6) atras = 1; // sab → vie
+            const d = new Date();
+            d.setDate(d.getDate() - atras);
+            d.setHours(0, 0, 0, 0);
+            return d;
+        }
+
+        function actualizarLabelDiaAnterior() {
+            const d = getDiaAnteriorLaborable();
+            const dias = ['Domingo', 'Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes', 'Sábado'];
+            document.getElementById('diaAnteriorLabel').textContent = dias[d.getDay()];
+        }
+
+        async function cargarHoy() {
+            const hoy = new Date();
+            const dia = hoy.getDay();
+            let fecha = new Date();
+            let label = 'HOY';
+
+            if (dia === 0) { fecha.setDate(fecha.getDate() + 1); label = 'LUNES'; }
+            else if (dia === 6) { fecha.setDate(fecha.getDate() + 2); label = 'LUNES'; }
+
+            fecha.setHours(0, 0, 0, 0);
+            await cargarDatosPorFecha(fecha, label);
+        }
+
+        async function cargarDiaAnterior() {
+            const d = getDiaAnteriorLaborable();
+            const dias = ['Domingo', 'Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes', 'Sábado'];
+            await cargarDatosPorFecha(d, dias[d.getDay()].toUpperCase());
+        }
+
+        async function cargarFechaCustom() {
+            const input = document.getElementById('fechaCustom');
+            if (!input.value) { alert('Seleccioná una fecha'); return; }
+            const partes = input.value.split('-');
+            const fecha = new Date(partes[0], partes[1] - 1, partes[2]);
+            fecha.setHours(0, 0, 0, 0);
+            const dias = ['Dom', 'Lun', 'Mar', 'Mié', 'Jue', 'Vie', 'Sáb'];
+            const meses = ['Ene', 'Feb', 'Mar', 'Abr', 'May', 'Jun', 'Jul', 'Ago', 'Sep', 'Oct', 'Nov', 'Dic'];
+            const label = `${dias[fecha.getDay()]} ${fecha.getDate()} ${meses[fecha.getMonth()]}`;
+            await cargarDatosPorFecha(fecha, label);
+        }
+
+        async function cargarDatos() {
+            await cargarHoy();
+        }
+
+        // ===================== INIT =====================
+        window.addEventListener('DOMContentLoaded', () => {
+            actualizarLabelDiaAnterior();
+            cargarHoy();
+        });
+    </script>
+</body>
+</html>
