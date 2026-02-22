@@ -2,352 +2,476 @@
 <html lang="es">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>🖨️ Para Imprimir</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+    <title>Despachos - Mikra + Chaya</title>
+    <meta name="theme-color" content="#0a0a0f">
+    <meta name="description" content="Dashboard de despachos MercadoLibre - Mikra + Chaya">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <meta name="apple-mobile-web-app-title" content="Despachos">
+    <link rel="manifest" href="manifest.json">
+    <link rel="apple-touch-icon" href="icon-192.png">
+    <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;700;800&family=Outfit:wght@300;500;700;900&display=swap" rel="stylesheet">
     <style>
-        @import url('https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;600;700&display=swap');
         * { margin: 0; padding: 0; box-sizing: border-box; }
-        body {
-            font-family: 'DM Sans', sans-serif;
-            background: #0f0f13;
-            color: #e8e8ef;
-            min-height: 100vh;
-            display: flex;
-            align-items: flex-start;
-            justify-content: center;
-            padding: 20px;
-        }
-        .app { max-width: 480px; width: 100%; }
 
-        .header {
-            display: flex;
-            align-items: center;
-            justify-content: space-between;
+        body {
+            font-family: 'Outfit', sans-serif;
+            background: #0a0a0f;
+            color: #e8e8f0;
+            min-height: 100vh;
+            padding: 16px;
+        }
+
+        .container { max-width: 600px; margin: 0 auto; }
+
+        h1 {
+            font-size: 22px;
+            font-weight: 900;
+            text-align: center;
+            margin-bottom: 6px;
+            letter-spacing: -0.5px;
+        }
+        h1 span { color: #FFE600; }
+
+        .subtitle {
+            text-align: center;
+            color: #555;
+            font-size: 12px;
+            font-family: 'JetBrains Mono', monospace;
             margin-bottom: 20px;
         }
-        .header h1 { font-size: 18px; font-weight: 700; color: #FFE600; }
-        .fecha {
-            background: #FF6B00; color: white; padding: 4px 12px;
-            border-radius: 16px; font-size: 11px; font-weight: 700;
-        }
 
-        .big-number {
-            text-align: center;
-            padding: 28px 20px;
-            background: #1a1a22;
-            border: 1px solid #2a2a3a;
-            border-radius: 16px;
-            margin-bottom: 16px;
-        }
-        .big-number .num {
-            font-size: 72px;
-            font-weight: 700;
-            color: #FFE600;
-            line-height: 1;
-        }
-        .big-number .sub {
+        .reload-btn {
+            display: block;
+            margin: 0 auto 20px;
+            background: none;
+            border: 1px solid #333;
+            color: #888;
+            padding: 8px 20px;
+            border-radius: 8px;
+            font-family: 'Outfit', sans-serif;
             font-size: 13px;
-            color: #8888a0;
-            margin-top: 6px;
+            cursor: pointer;
+            transition: all 0.2s;
         }
+        .reload-btn:hover { border-color: #FFE600; color: #FFE600; }
+        .reload-btn:disabled { opacity: 0.3; cursor: wait; }
 
-        .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
-
-        .card {
-            background: #1a1a22;
-            border: 1px solid #2a2a3a;
-            border-radius: 12px;
-            padding: 16px;
+        /* Cuenta card */
+        .cuenta-card {
+            background: #12121a;
+            border: 1px solid #1e1e2e;
+            border-radius: 16px;
+            padding: 20px;
+            margin-bottom: 14px;
             position: relative;
             overflow: hidden;
         }
-        .card::before {
+        .cuenta-card::before {
             content: '';
             position: absolute;
             top: 0; left: 0; right: 0;
             height: 3px;
         }
-        .card.mikra { border-color: rgba(156,39,176,0.3); }
-        .card.mikra::before { background: #9C27B0; }
-        .card.chaya { border-color: rgba(255,107,0,0.3); }
-        .card.chaya::before { background: #FF6B00; }
+        .cuenta-card.mikra::before { background: linear-gradient(90deg, #9C27B0, #E040FB); }
+        .cuenta-card.chaya::before { background: linear-gradient(90deg, #FF6B00, #FFB74D); }
 
-        .card-title {
-            font-size: 13px;
-            font-weight: 700;
-            margin-bottom: 12px;
-            display: flex;
-            align-items: center;
-            gap: 6px;
-        }
-        .dot {
-            width: 8px; height: 8px;
-            border-radius: 50%;
-            display: inline-block;
-        }
-        .dot.mikra { background: #9C27B0; }
-        .dot.chaya { background: #FF6B00; }
-
-        .row {
+        .cuenta-header {
             display: flex;
             justify-content: space-between;
             align-items: center;
-            padding: 6px 0;
+            margin-bottom: 16px;
         }
-        .row:not(:last-child) { border-bottom: 1px solid #2a2a3a; }
-        .row-label { font-size: 13px; color: #8888a0; }
-        .row-num { font-size: 22px; font-weight: 700; color: #FFE600; }
-        .row-num.zero { color: #3a3a4a; font-size: 20px; }
+        .cuenta-name {
+            font-size: 18px;
+            font-weight: 700;
+            letter-spacing: -0.3px;
+        }
+        .cuenta-card.mikra .cuenta-name { color: #E040FB; }
+        .cuenta-card.chaya .cuenta-name { color: #FFB74D; }
 
-        .loading {
+        .cuenta-total {
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 13px;
+            color: #666;
+        }
+
+        .stats-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 10px;
+        }
+
+        .stat-box {
+            background: #0a0a0f;
+            border: 1px solid #1e1e2e;
+            border-radius: 12px;
+            padding: 14px;
             text-align: center;
-            padding: 50px 20px;
+            transition: all 0.3s;
+        }
+        .stat-box:hover { border-color: #333; }
+
+        .stat-number {
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 32px;
+            font-weight: 800;
+            line-height: 1;
+            margin-bottom: 4px;
+        }
+        .stat-label {
+            font-size: 11px;
+            color: #666;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            font-weight: 500;
+        }
+        .stat-sublabel {
+            font-size: 10px;
+            color: #444;
+            font-family: 'JetBrains Mono', monospace;
+            margin-top: 2px;
+        }
+
+        .stat-box.flex .stat-number { color: #00e676; }
+        .stat-box.colecta .stat-number { color: #42a5f5; }
+        .stat-box.imprimir .stat-number { color: #ff5252; }
+        .stat-box.imprimir { border-color: #ff525233; }
+        .stat-box.pendiente .stat-number { color: #666; }
+
+        /* Print badge full width */
+        .print-row {
+            margin-top: 10px;
+            background: #1a0a0a;
+            border: 1px solid #ff525233;
+            border-radius: 12px;
+            padding: 12px 16px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        .print-row .print-label {
+            font-size: 13px;
+            color: #ff5252;
+            font-weight: 500;
+        }
+        .print-row .print-number {
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 24px;
+            font-weight: 800;
+            color: #ff5252;
+        }
+
+        /* Totales */
+        .totales-card {
+            background: linear-gradient(135deg, #12121a, #1a1a2e);
+            border: 1px solid #FFE60033;
+            border-radius: 16px;
+            padding: 20px;
+            margin-bottom: 14px;
+        }
+        .totales-card .cuenta-name { color: #FFE600; }
+        .totales-card .stat-box { border-color: #FFE60022; }
+
+        /* Loading */
+        .loading-state {
+            text-align: center;
+            padding: 40px 0;
+            color: #444;
         }
         .spinner {
-            width: 36px; height: 36px;
-            border: 3px solid #2a2a3a;
+            width: 30px; height: 30px;
+            border: 3px solid #222;
             border-top-color: #FFE600;
             border-radius: 50%;
-            animation: spin 0.7s linear infinite;
+            animation: spin 0.8s linear infinite;
             margin: 0 auto 12px;
         }
         @keyframes spin { to { transform: rotate(360deg); } }
-        .load-text { color: #FFE600; font-size: 14px; }
-        .load-sub { color: #8888a0; font-size: 11px; margin-top: 4px; }
 
-        .footer {
-            text-align: center;
-            margin-top: 16px;
+        .progress-text {
+            font-family: 'JetBrains Mono', monospace;
             font-size: 11px;
             color: #555;
+            margin-top: 8px;
         }
-        .footer a { color: #3483FA; cursor: pointer; text-decoration: underline; }
 
-        .error-box {
-            background: rgba(244,67,54,0.1);
-            border: 1px solid rgba(244,67,54,0.3);
-            color: #f44336;
-            padding: 14px;
-            border-radius: 10px;
+        .last-update {
             text-align: center;
-            font-size: 13px;
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 10px;
+            color: #333;
+            margin-top: 12px;
         }
+
+        @keyframes fadeUp {
+            from { opacity: 0; transform: translateY(10px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+        .animate-in { animation: fadeUp 0.4s ease forwards; }
+
+        @keyframes pulse-glow {
+            0%, 100% { box-shadow: 0 0 0 0 #ff525200; }
+            50% { box-shadow: 0 0 12px 2px #ff525244; }
+        }
+        .has-prints { animation: pulse-glow 2s ease infinite; }
     </style>
 </head>
 <body>
-    <div class="app">
-        <div class="header">
-            <h1>🖨️ Para Imprimir</h1>
-            <span class="fecha" id="fechaLabel">...</span>
+    <div class="container">
+        <h1>📦 <span>Despachos</span></h1>
+        <div class="subtitle" id="subtitle">Mikra + Chaya</div>
+
+        <button class="reload-btn" id="reloadBtn" onclick="cargarTodo()">⟳ Actualizar</button>
+
+        <div id="heroTotal" style="display:none; text-align:center; margin-bottom:20px;">
+            <div style="font-family:'JetBrains Mono',monospace; font-size:56px; font-weight:800; color:#FFE600; line-height:1;">
+                <span id="heroNumber">0</span>
+            </div>
+            <div style="font-size:14px; color:#888; margin-top:4px;">paquetes para imprimir</div>
         </div>
+
         <div id="content">
-            <div class="loading">
+            <div class="loading-state">
                 <div class="spinner"></div>
-                <div class="load-text">Cargando...</div>
-                <div class="load-sub" id="loadSub">Conectando</div>
+                Cargando...
+                <div class="progress-text" id="progress"></div>
             </div>
         </div>
+
+        <div class="last-update" id="lastUpdate"></div>
     </div>
 
     <script>
         const CUENTAS = [
-            { nombre: 'Mikra', proxy: 'https://mikra-flex-proxy.rafaelassir.workers.dev', color: 'mikra' },
-            { nombre: 'Chaya', proxy: 'https://chaya-flex-proxy.rafaelassir.workers.dev', color: 'chaya' }
+            {
+                nombre: 'Mikra',
+                proxy: 'https://mikra-flex-proxy.rafaelassir.workers.dev',
+                css: 'mikra',
+                colectaLabel: 'Recolecta',
+                colectaDesc: 'ML pasa a buscar'
+            },
+            {
+                nombre: 'Chaya',
+                proxy: 'https://chaya-flex-proxy.rafaelassir.workers.dev',
+                css: 'chaya',
+                colectaLabel: 'Despacho',
+                colectaDesc: 'Llevar a punto'
+            }
         ];
 
-        async function getToken(cuenta) {
-            try {
-                const r = await fetch(`${cuenta.proxy}/get-token`);
-                const d = await r.json();
-                if (d.access_token) {
-                    if (d.user_id) sessionStorage.setItem(`${cuenta.nombre.toLowerCase()}_uid`, d.user_id);
-                    return d.access_token;
-                }
-                return null;
-            } catch { return null; }
-        }
-
-        async function getSellerId(cuenta) {
-            let id = sessionStorage.getItem(`${cuenta.nombre.toLowerCase()}_uid`);
-            if (!id) {
-                try {
-                    const r = await fetch(`${cuenta.proxy}/get-token`);
-                    const d = await r.json();
-                    if (d.user_id) { id = d.user_id; sessionStorage.setItem(`${cuenta.nombre.toLowerCase()}_uid`, id); }
-                } catch {}
-            }
-            return id;
-        }
-
-        function getProximoDiaHabil() {
-            const hoy = new Date();
-            const dia = hoy.getDay();
-            const target = new Date();
-            if (dia === 5) target.setDate(target.getDate() + 3);
-            else if (dia === 6) target.setDate(target.getDate() + 2);
-            else if (dia === 0) target.setDate(target.getDate() + 1);
-            else target.setDate(target.getDate() + 1);
-            target.setHours(0, 0, 0, 0);
-            return target;
-        }
-
-        function getLabelFecha(fecha) {
-            const dias = ['Domingo', 'Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes', 'Sábado'];
-            return `${dias[fecha.getDay()]} ${fecha.getDate()}/${fecha.getMonth() + 1}`;
-        }
-
-        async function cargarCuenta(cuenta, token, targetDate) {
-            const sellerId = await getSellerId(cuenta);
-            if (!sellerId) return { flex: 0, colecta: 0 };
-
-            const targetStr = targetDate.toISOString().split('T')[0];
-
-            const from = new Date(targetDate); from.setDate(from.getDate() - 5); from.setHours(0, 0, 0, 0);
-            const to = new Date(targetDate); to.setDate(to.getDate() + 1); to.setHours(23, 59, 59, 0);
-            const df = `&order.date_created.from=${encodeURIComponent(from.toISOString().split('.')[0] + '.000-00:00')}&order.date_created.to=${encodeURIComponent(to.toISOString().split('.')[0] + '.000-00:00')}`;
-
-            // Paginar todas las órdenes
-            let allOrders = [];
-            let page = 0;
-            let hasMore = true;
-            while (hasMore) {
-                try {
-                    const r = await fetch(`${cuenta.proxy}/api/orders/search?seller=${sellerId}&offset=${page * 50}&limit=50&sort=date_desc${df}`, {
-                        headers: { 'Authorization': `Bearer ${token}` }
-                    });
-                    const d = await r.json();
-                    const results = d.results || [];
-                    allOrders.push(...results);
-
-                    const sub = document.getElementById('loadSub');
-                    if (sub) sub.textContent = `${cuenta.nombre}: ${allOrders.length} órdenes...`;
-
-                    if (results.length < 50 || allOrders.length >= (d.paging?.total || 9999)) hasMore = false;
-                } catch { hasMore = false; }
-                page++;
-                if (page >= 40) hasMore = false;
-            }
-
-            // Revisar shippings en lotes de 10
-            const seen = new Set();
-            let flex = 0, colecta = 0;
-            let revisados = 0;
-
-            for (let i = 0; i < allOrders.length; i += 10) {
-                const batch = allOrders.slice(i, i + 10);
-                const results = await Promise.all(batch.map(async (order) => {
-                    const sid = order.shipping?.id;
-                    if (!sid || seen.has(sid)) return null;
-                    seen.add(sid);
-                    try {
-                        const r = await fetch(`${cuenta.proxy}/api/shipments/${sid}`, {
-                            headers: { 'Authorization': `Bearer ${token}` }
-                        });
-                        return await r.json();
-                    } catch { return null; }
-                }));
-
-                for (const ship of results) {
-                    if (!ship) continue;
-                    revisados++;
-                    if (ship.status !== 'ready_to_ship') continue;
-                    if (ship.status_history?.date_shipped) continue;
-
-                    const fechaEnt = (ship.shipping_option?.estimated_delivery_time?.date ||
-                                     ship.shipping_option?.estimated_delivery_final?.date || '').split('T')[0];
-                    if (fechaEnt !== targetStr) continue;
-
-                    if (ship.logistic_type === 'self_service') {
-                        // Flex: ready_to_ship sin date_shipped
-                        flex++;
-                    } else {
-                        // Colecta: solo in_packing_list (in_hub = ya despachadas)
-                        if (ship.substatus === 'in_packing_list') {
-                            colecta++;
-                        }
-                    }
-                }
-
-                const sub = document.getElementById('loadSub');
-                if (sub) sub.textContent = `${cuenta.nombre}: revisando envíos ${revisados}...`;
-            }
-
-            return { flex, colecta };
-        }
-
-        async function cargar() {
-            const target = getProximoDiaHabil();
-            const label = getLabelFecha(target);
-            document.getElementById('fechaLabel').textContent = `📅 ${label}`;
-
-            const resultado = {};
-            let totalFlex = 0, totalColecta = 0;
-
-            for (const cuenta of CUENTAS) {
-                const sub = document.getElementById('loadSub');
-                if (sub) sub.textContent = `Conectando ${cuenta.nombre}...`;
-
-                try {
-                    const token = await getToken(cuenta);
-                    if (!token) {
-                        resultado[cuenta.nombre] = { flex: 0, colecta: 0, color: cuenta.color, error: true };
-                        continue;
-                    }
-                    const counts = await cargarCuenta(cuenta, token, target);
-                    resultado[cuenta.nombre] = { ...counts, color: cuenta.color };
-                    totalFlex += counts.flex;
-                    totalColecta += counts.colecta;
-                } catch (e) {
-                    resultado[cuenta.nombre] = { flex: 0, colecta: 0, color: cuenta.color, error: true };
-                }
-            }
-
-            render(resultado, totalFlex, totalColecta);
-        }
-
-        function render(data, totalFlex, totalColecta) {
-            const total = totalFlex + totalColecta;
-
-            let html = `
-                <div class="big-number">
-                    <div class="num">${total}</div>
-                    <div class="sub">paquetes para imprimir · ${totalFlex} Flex · ${totalColecta} Colecta</div>
+        async function cargarTodo() {
+            const btn = document.getElementById('reloadBtn');
+            btn.disabled = true;
+            btn.textContent = '⟳ Cargando...';
+            
+            document.getElementById('heroTotal').style.display = 'none';
+            document.getElementById('content').innerHTML = `
+                <div class="loading-state">
+                    <div class="spinner"></div>
+                    Cargando paquetes...
+                    <div class="progress-text" id="progress"></div>
                 </div>
-                <div class="grid">
             `;
 
-            for (const [nombre, d] of Object.entries(data)) {
-                if (d.error) {
-                    html += `
-                        <div class="card ${d.color}">
-                            <div class="card-title"><span class="dot ${d.color}"></span> ${nombre}</div>
-                            <div class="error-box">Sin conexión</div>
-                        </div>`;
-                    continue;
+            const resultados = [];
+
+            for (const cuenta of CUENTAS) {
+                document.getElementById('progress').textContent = `${cuenta.nombre}...`;
+                try {
+                    const data = await cargarCuenta(cuenta);
+                    resultados.push(data);
+                } catch (e) {
+                    console.error(`Error ${cuenta.nombre}:`, e);
+                    resultados.push({
+                        cuenta,
+                        flex: 0, colecta: 0, imprimir: 0, buffered: 0, total: 0,
+                        error: true
+                    });
                 }
-                html += `
-                    <div class="card ${d.color}">
-                        <div class="card-title"><span class="dot ${d.color}"></span> ${nombre}</div>
-                        <div class="row">
-                            <span class="row-label">🏍️ Flex</span>
-                            <span class="row-num ${d.flex === 0 ? 'zero' : ''}">${d.flex}</span>
-                        </div>
-                        <div class="row">
-                            <span class="row-label">📮 Colecta</span>
-                            <span class="row-num ${d.colecta === 0 ? 'zero' : ''}">${d.colecta}</span>
-                        </div>
-                    </div>`;
             }
 
-            html += `</div>`;
-
-            const now = new Date();
-            html += `<div class="footer">${now.toLocaleString('es-AR', { timeZone: 'America/Argentina/Buenos_Aires', hour: '2-digit', minute: '2-digit', hour12: false })} hs · <a onclick="location.reload()">Recargar</a></div>`;
-
-            document.getElementById('content').innerHTML = html;
+            renderResultados(resultados);
+            
+            btn.disabled = false;
+            btn.textContent = '⟳ Actualizar';
+            
+            const ahora = new Date();
+            document.getElementById('lastUpdate').textContent = 
+                `Actualizado: ${ahora.toLocaleTimeString('es-AR', { hour: '2-digit', minute: '2-digit' })}`;
         }
 
-        window.addEventListener('DOMContentLoaded', cargar);
+        async function cargarCuenta(cuenta) {
+            const tokenResp = await fetch(`${cuenta.proxy}/get-token`);
+            const { access_token, user_id } = await tokenResp.json();
+
+            const ships = new Map();
+            
+            // Buscar solo órdenes con shipping ready_to_ship (mucho más rápido)
+            for (const shippingStatus of ['ready_to_ship', 'pending']) {
+                let offset = 0;
+                let keepGoing = true;
+                
+                while (keepGoing) {
+                    document.getElementById('progress').textContent = 
+                        `${cuenta.nombre}: buscando ${shippingStatus}...`;
+
+                    const resp = await fetch(
+                        `${cuenta.proxy}/api/orders/search?seller=${user_id}&offset=${offset}&limit=50&sort=date_desc&shipping.status=${shippingStatus}`,
+                        { headers: { 'Authorization': `Bearer ${access_token}` } }
+                    );
+                    const data = await resp.json();
+                    const orders = data.results || [];
+
+                    if (orders.length === 0) break;
+
+                    // Collect new shipment IDs
+                    const newShipIds = [];
+                    for (const o of orders) {
+                        const sid = o.shipping?.id;
+                        if (sid && !ships.has(sid)) newShipIds.push(sid);
+                    }
+
+                    // Fetch all new shipments in parallel
+                    const shipResults = await Promise.all(
+                        newShipIds.map(async (sid) => {
+                            try {
+                                const sr = await fetch(`${cuenta.proxy}/api/shipments/${sid}`, {
+                                    headers: { 'Authorization': `Bearer ${access_token}` }
+                                });
+                                return await sr.json();
+                            } catch (e) { return null; }
+                        })
+                    );
+
+                    for (const s of shipResults) {
+                        if (s?.id) ships.set(s.id, s);
+                    }
+
+                    // Si trajo menos de 50, no hay más
+                    if (orders.length < 50) break;
+                    offset += 50;
+                    if (offset >= 300) break; // Safety limit
+                }
+            }
+
+            // Contar solo ready_to_print
+            let flex = 0, colecta = 0, buffered = 0;
+            
+            ships.forEach(s => {
+                if (s.substatus === 'ready_to_print') {
+                    if (s.logistic_type === 'self_service') flex++;
+                    else colecta++;
+                } else if (s.substatus === 'buffered') {
+                    buffered++;
+                }
+            });
+
+            return {
+                cuenta,
+                flex,
+                colecta,
+                imprimir: flex + colecta,
+                buffered,
+                total: flex + colecta
+            };
+        }
+
+        function renderResultados(resultados) {
+            let html = '';
+
+            // Cards por cuenta
+            resultados.forEach((r, i) => {
+                const c = r.cuenta;
+                html += `
+                    <div class="cuenta-card ${c.css} animate-in" style="animation-delay: ${i * 0.15}s">
+                        <div class="cuenta-header">
+                            <div class="cuenta-name">${c.nombre}</div>
+                            <div class="cuenta-total">🖨️ Imprimir: ${r.imprimir}</div>
+                        </div>
+                        <div class="stats-grid">
+                            <div class="stat-box flex">
+                                <div class="stat-number">${r.flex}</div>
+                                <div class="stat-label">🏍️ Flex</div>
+                            </div>
+                            <div class="stat-box colecta">
+                                <div class="stat-number">${r.colecta}</div>
+                                <div class="stat-label">📦 ${c.colectaLabel}</div>
+                                <div class="stat-sublabel">${c.colectaDesc}</div>
+                            </div>
+                        </div>
+                        ${r.buffered > 0 ? `
+                        <div style="margin-top:10px; text-align:center; font-size:11px; color:#555;">
+                            ⏳ ${r.buffered} pendiente${r.buffered > 1 ? 's' : ''} (buffered, aún no listas)
+                        </div>` : ''}
+                    </div>
+                `;
+            });
+
+            // Totales
+            const totFlex = resultados.reduce((a, r) => a + r.flex, 0);
+            const totColecta = resultados.reduce((a, r) => a + r.colecta, 0);
+            const totImprimir = resultados.reduce((a, r) => a + r.imprimir, 0);
+            const totBuffered = resultados.reduce((a, r) => a + r.buffered, 0);
+
+            html += `
+                <div class="totales-card animate-in" style="animation-delay: 0.3s">
+                    <div class="cuenta-header">
+                        <div class="cuenta-name">Total</div>
+                        <div class="cuenta-total">🖨️ Imprimir: ${totImprimir}</div>
+                    </div>
+                    <div class="stats-grid">
+                        <div class="stat-box flex">
+                            <div class="stat-number">${totFlex}</div>
+                            <div class="stat-label">🏍️ Flex</div>
+                        </div>
+                        <div class="stat-box colecta">
+                            <div class="stat-number">${totColecta}</div>
+                            <div class="stat-label">📦 Colecta</div>
+                        </div>
+                    </div>
+                    ${totBuffered > 0 ? `
+                    <div style="margin-top:10px; text-align:center; font-size:11px; color:#555;">
+                        ⏳ ${totBuffered} pendiente${totBuffered > 1 ? 's' : ''} (buffered)
+                    </div>` : ''}
+                </div>
+            `;
+
+            document.getElementById('content').innerHTML = html;
+            
+            // Hero total
+            const heroEl = document.getElementById('heroTotal');
+            heroEl.style.display = 'block';
+            document.getElementById('heroNumber').textContent = totImprimir;
+        }
+
+        // Cargar al inicio
+        cargarTodo();
+
+        // Auto-refresh cada 5 minutos
+        setInterval(() => {
+            if (!document.getElementById('reloadBtn').disabled) {
+                cargarTodo();
+            }
+        }, 5 * 60 * 1000);
+
+        // Pull to refresh (mobile)
+        let touchStartY = 0;
+        document.addEventListener('touchstart', e => {
+            if (window.scrollY === 0) touchStartY = e.touches[0].clientY;
+        }, { passive: true });
+        document.addEventListener('touchend', e => {
+            const diff = e.changedTouches[0].clientY - touchStartY;
+            if (diff > 120 && window.scrollY === 0 && !document.getElementById('reloadBtn').disabled) {
+                cargarTodo();
+            }
+        }, { passive: true });
+
+        // Service Worker
+        if ('serviceWorker' in navigator) {
+            navigator.serviceWorker.register('sw.js').catch(() => {});
+        }
     </script>
 </body>
 </html>
