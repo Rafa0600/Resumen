@@ -308,17 +308,16 @@
 
             const ships = new Map();
             
-            // Buscar solo órdenes con shipping ready_to_ship (mucho más rápido)
-            for (const shippingStatus of ['ready_to_ship', 'pending']) {
+            // Buscar directamente por substatus (mucho más eficiente que por status)
+            for (const substatus of ['ready_to_print', 'buffered']) {
                 let offset = 0;
-                let keepGoing = true;
                 
-                while (keepGoing) {
+                while (true) {
                     document.getElementById('progress').textContent = 
-                        `${cuenta.nombre}: buscando ${shippingStatus}...`;
+                        `${cuenta.nombre}: ${substatus} (${ships.size})...`;
 
                     const resp = await fetch(
-                        `${cuenta.proxy}/api/orders/search?seller=${user_id}&offset=${offset}&limit=50&sort=date_desc&shipping.status=${shippingStatus}`,
+                        `${cuenta.proxy}/api/orders/search?seller=${user_id}&offset=${offset}&limit=50&sort=date_desc&shipping.substatus=${substatus}`,
                         { headers: { 'Authorization': `Bearer ${access_token}` } }
                     );
                     const data = await resp.json();
@@ -326,37 +325,38 @@
 
                     if (orders.length === 0) break;
 
-                    // Collect new shipment IDs
+                    // Recoger IDs de shipments nuevos
                     const newShipIds = [];
                     for (const o of orders) {
                         const sid = o.shipping?.id;
                         if (sid && !ships.has(sid)) newShipIds.push(sid);
                     }
 
-                    // Fetch all new shipments in parallel
-                    const shipResults = await Promise.all(
-                        newShipIds.map(async (sid) => {
-                            try {
-                                const sr = await fetch(`${cuenta.proxy}/api/shipments/${sid}`, {
-                                    headers: { 'Authorization': `Bearer ${access_token}` }
-                                });
-                                return await sr.json();
-                            } catch (e) { return null; }
-                        })
-                    );
-
-                    for (const s of shipResults) {
-                        if (s?.id) ships.set(s.id, s);
+                    // Fetch shipments en lotes de 15 para no saturar
+                    for (let i = 0; i < newShipIds.length; i += 15) {
+                        const batch = newShipIds.slice(i, i + 15);
+                        const shipResults = await Promise.all(
+                            batch.map(async (sid) => {
+                                try {
+                                    const sr = await fetch(`${cuenta.proxy}/api/shipments/${sid}`, {
+                                        headers: { 'Authorization': `Bearer ${access_token}` }
+                                    });
+                                    return await sr.json();
+                                } catch (e) { return null; }
+                            })
+                        );
+                        for (const s of shipResults) {
+                            if (s?.id) ships.set(s.id, s);
+                        }
                     }
 
-                    // Si trajo menos de 50, no hay más
                     if (orders.length < 50) break;
                     offset += 50;
-                    if (offset >= 300) break; // Safety limit
+                    if (offset >= 1000) break; // ML API max
                 }
             }
 
-            // Contar solo ready_to_print
+            // Contar
             let flex = 0, colecta = 0, buffered = 0;
             
             ships.forEach(s => {
