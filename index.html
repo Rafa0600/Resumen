@@ -19,6 +19,7 @@
             --border-bright: #2a2a40;
             --text: #e0e0f0;
             --muted: #555570;
+            --muted-2: #7a7a95;
             --yellow: #FFE600;
             --green: #00e676;
             --blue: #40c4ff;
@@ -35,8 +36,7 @@
             color: var(--text);
             min-height: 100vh;
             padding: 0 0 40px;
-            /* Subtle grid bg */
-            background-image: 
+            background-image:
                 linear-gradient(rgba(255,230,0,0.015) 1px, transparent 1px),
                 linear-gradient(90deg, rgba(255,230,0,0.015) 1px, transparent 1px);
             background-size: 40px 40px;
@@ -95,6 +95,13 @@
             color: var(--muted);
             margin-top: 6px;
         }
+        .hero-units {
+            font-family: 'Space Mono', monospace;
+            font-size: 11px;
+            color: rgba(255,230,0,0.55);
+            margin-top: 4px;
+            letter-spacing: 0.5px;
+        }
         .hero-cached-badge {
             display: inline-block;
             margin-top: 8px;
@@ -138,7 +145,7 @@
             background: var(--surface);
             border: 1px solid var(--border);
             border-radius: 18px;
-            padding: 18px 16px;
+            padding: 16px 16px 14px;
             margin-bottom: 12px;
             position: relative;
             overflow: hidden;
@@ -151,14 +158,17 @@
         }
         .cuenta-card.mikra::before { background: linear-gradient(90deg, #9C27B0, #d070ff); }
         .cuenta-card.chaya::before { background: linear-gradient(90deg, #FF6B00, #ffaa44); }
-        .cuenta-card.total { background: linear-gradient(135deg, var(--surface), #0f0f20); border-color: rgba(255,230,0,0.15); }
+        .cuenta-card.total {
+            background: linear-gradient(135deg, var(--surface), #0f0f20);
+            border-color: rgba(255,230,0,0.15);
+        }
         .cuenta-card.total::before { background: linear-gradient(90deg, #b8a000, var(--yellow)); }
 
-        .card-header {
+        .card-top {
             display: flex;
             justify-content: space-between;
             align-items: baseline;
-            margin-bottom: 14px;
+            margin-bottom: 4px;
         }
         .card-name {
             font-size: 17px;
@@ -169,60 +179,124 @@
         .chaya .card-name { color: var(--orange); }
         .total .card-name { color: var(--yellow); }
 
-        .card-imprimir {
+        .card-cutoff {
             font-family: 'Space Mono', monospace;
-            font-size: 12px;
+            font-size: 11px;
+            color: var(--muted-2);
+            display: flex;
+            align-items: center;
+            gap: 4px;
+        }
+        .card-cutoff b {
+            color: var(--text);
+            font-weight: 700;
+        }
+        .card-cutoff.urgent b { color: var(--red); }
+
+        .card-cutoff-sub {
+            font-family: 'Space Mono', monospace;
+            font-size: 10px;
             color: var(--muted);
+            text-align: right;
+            margin-bottom: 12px;
+            opacity: 0.8;
         }
-        .card-imprimir b { color: var(--red); }
 
-        /* ── STAT GRID ── */
-        .stats-grid {
+        /* ── TABLA compacta de métricas ── */
+        .metrics-table {
             display: grid;
-            grid-template-columns: 1fr 1fr;
-            gap: 8px;
+            grid-template-columns: auto 1fr 1fr;
+            gap: 4px 10px;
+            font-family: 'Space Mono', monospace;
+            font-size: 14px;
+            padding: 10px 6px 6px;
+            border-top: 1px solid var(--border);
+            border-bottom: 1px solid var(--border);
         }
-
-        .stat-box {
-            background: var(--bg);
-            border: 1px solid var(--border);
-            border-radius: 12px;
-            padding: 14px 12px;
+        .metrics-table .th {
+            font-size: 10px;
+            font-weight: 700;
+            color: var(--muted);
+            text-transform: uppercase;
+            letter-spacing: 1.2px;
+            padding-bottom: 8px;
+            border-bottom: 1px solid var(--border);
+            margin-bottom: 4px;
             text-align: center;
         }
-        .stat-num {
-            font-family: 'Space Mono', monospace;
-            font-size: 36px;
-            font-weight: 700;
-            line-height: 1;
-            margin-bottom: 5px;
-        }
-        .stat-lbl {
-            font-size: 11px;
+        /* Imprimir = amarillo vivo */
+        .metrics-table .th.imprimir { color: #ffddaa; }
+        /* Impresos = muy apagado */
+        .metrics-table .th.despachar { color: #3a3a52; }
+
+        .metrics-table .row-label {
+            font-size: 12px;
+            font-family: 'Space Grotesk', sans-serif;
             color: var(--muted);
-            font-weight: 500;
-            text-transform: uppercase;
-            letter-spacing: 1px;
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            padding: 6px 4px;
         }
-        .stat-sub {
-            font-size: 10px;
-            color: #383850;
+        .metrics-table .row-label .dot {
+            width: 6px; height: 6px; border-radius: 50%;
+        }
+        .metrics-table .row-label.flex .dot { background: var(--green); }
+        .metrics-table .row-label.colecta .dot { background: var(--blue); }
+
+        .metrics-table .cell {
+            text-align: center;
+            padding: 6px 4px;
+            border-radius: 6px;
+        }
+        /* Columna IMPRIMIR: números grandes y vivos */
+        .col-imprimir .num {
+            font-size: 22px;
+            font-weight: 700;
+            color: var(--text);
+        }
+        .col-imprimir .num.zero { color: #2e2e44; font-weight: 400; font-size: 18px; }
+        .col-imprimir .uni { font-size: 10px; color: var(--muted); margin-top: 2px; }
+        .col-imprimir .uni.zero { color: #2e2e44; }
+
+        /* Columna IMPRESOS: todo muy grisado, secundario */
+        .col-despachar .num {
+            font-size: 15px;
+            font-weight: 500;
+            color: #4a4a66;
+        }
+        .col-despachar .num.zero { color: #2a2a3e; font-weight: 400; }
+        .col-despachar .uni { font-size: 10px; color: #3a3a52; margin-top: 2px; }
+        .col-despachar .uni.zero { color: #2a2a3e; }
+
+        /* Fila total */
+        .metrics-table .cell.total-imprimir .num { color: var(--yellow); font-size: 22px; }
+        .metrics-table .cell.total-imprimir .num.zero { color: #2e2e44; }
+        .metrics-table .cell.total-despachar .num { color: #4a4a66; font-size: 15px; }
+        .metrics-table .cell.total-despachar .num.zero { color: #2a2a3e; }
+        .buffered-row {
+            margin-top: 10px;
+            text-align: center;
+            font-size: 11px;
+            color: #6a6a85;
+            font-family: 'Space Mono', monospace;
+            padding-top: 8px;
+        }
+
+        /* ── Todo al día ── */
+        .all-clear {
+            text-align: center;
+            padding: 20px 0 8px;
+            color: var(--green);
+            font-size: 14px;
+            font-weight: 500;
+        }
+        .all-clear-sub {
+            text-align: center;
+            color: var(--muted);
+            font-size: 11px;
             font-family: 'Space Mono', monospace;
             margin-top: 2px;
-        }
-
-        .stat-box.flex .stat-num { color: var(--green); }
-        .stat-box.colecta .stat-num { color: var(--blue); }
-
-        /* ── BUFFERED ── */
-        .buffered-row {
-            margin-top: 8px;
-            text-align: center;
-            font-size: 11px;
-            color: #444458;
-            font-family: 'Space Mono', monospace;
-            padding: 6px;
-            border-top: 1px solid var(--border);
         }
 
         /* ── ERROR STATE ── */
@@ -283,10 +357,10 @@
             font-size: 10px;
             color: var(--muted);
         }
-        .dot { width: 6px; height: 6px; border-radius: 50%; background: var(--muted); }
-        .dot.live { background: var(--green); box-shadow: 0 0 6px var(--green); }
-        .dot.cached { background: var(--yellow); box-shadow: 0 0 6px var(--yellow); }
-        .dot.error { background: var(--red); }
+        .dot-status { width: 6px; height: 6px; border-radius: 50%; background: var(--muted); }
+        .dot-status.live { background: var(--green); box-shadow: 0 0 6px var(--green); }
+        .dot-status.cached { background: var(--yellow); box-shadow: 0 0 6px var(--yellow); }
+        .dot-status.error { background: var(--red); }
     </style>
 </head>
 <body>
@@ -299,6 +373,7 @@
         <div class="hero-label">Para imprimir</div>
         <div class="hero-number" id="heroNumber">0</div>
         <div class="hero-sub" id="heroSub">paquetes</div>
+        <div class="hero-units" id="heroUnits"></div>
         <div id="heroCachedBadge" style="display:none" class="hero-cached-badge">⚡ datos en caché</div>
     </div>
 
@@ -317,7 +392,7 @@
     </div>
 
     <div class="status-row" id="statusRow" style="display:none">
-        <div class="dot" id="statusDot"></div>
+        <div class="dot-status" id="statusDot"></div>
         <span id="statusText">—</span>
     </div>
 
@@ -330,59 +405,54 @@
             nombre: 'Mikra',
             proxy: 'https://mikra-flex-proxy.rafaelassir.workers.dev',
             css: 'mikra',
-            colectaLabel: 'Recolecta',
-            colectaDesc: 'ML pasa a buscar'
+            colectaLabel: 'Colecta'
         },
         {
             nombre: 'Chaya',
             proxy: 'https://chaya-flex-proxy.rafaelassir.workers.dev',
             css: 'chaya',
-            colectaLabel: 'Despacho',
-            colectaDesc: 'Llevar a punto'
+            colectaLabel: 'Despacho'
         }
     ];
 
-    const TOKEN_TTL_MS   = 55 * 60 * 1000;   // 55 min (tokens duran ~6h, renovamos cada 55 min)
-    const RESULTS_TTL_MS =  3 * 60 * 1000;   // 3 min de caché de resultados
-    const FETCH_TIMEOUT  = 12_000;            // 12 seg timeout por request
+    // Worker de horarios (actualizado automáticamente por Tampermonkey)
+    const AUTH_WORKER = 'https://ml-auth-codes.rafaelassir.workers.dev';
+
+    // Horarios en memoria (se cargan del worker al iniciar)
+    let HORARIOS = { Mikra: {}, Chaya: {} };
+
+    const TOKEN_TTL_MS   = 55 * 60 * 1000;   // 55 min
+    const RESULTS_TTL_MS =  3 * 60 * 1000;   // 3 min caché
+    const FETCH_TIMEOUT  = 12_000;
     const MAX_RETRIES    = 3;
     const RETRY_DELAY_MS = 600;
 
     // ── Caché en memoria ──
-    const tokenCache = {};       // { proxy -> { token, userId, expiresAt } }
-    let   resultadosCache = null; // { data, fetchedAt }
+    const tokenCache = {};
+    let   resultadosCache = null;
 
     // ══════════════════════════════════════════════
     //  HELPERS
     // ══════════════════════════════════════════════
-
     function sleep(ms) { return new Promise(r => setTimeout(r, ms)); }
 
     async function fetchConTimeout(url, opts = {}, timeout = FETCH_TIMEOUT) {
         const ctrl = new AbortController();
         const timer = setTimeout(() => ctrl.abort(), timeout);
         try {
-            const resp = await fetch(url, { ...opts, signal: ctrl.signal });
-            return resp;
+            return await fetch(url, { ...opts, signal: ctrl.signal });
         } finally {
             clearTimeout(timer);
         }
     }
 
-    /** Fetch con reintentos + backoff exponencial */
     async function fetchConRetry(url, opts = {}, retries = MAX_RETRIES) {
         for (let i = 0; i <= retries; i++) {
             try {
                 const resp = await fetchConTimeout(url, opts);
                 if (resp.ok) return resp;
-                // 429 Rate limit: esperar más
-                if (resp.status === 429) {
-                    await sleep(RETRY_DELAY_MS * (i + 1) * 2);
-                    continue;
-                }
-                // 4xx (salvo 429): no reintentar
+                if (resp.status === 429) { await sleep(RETRY_DELAY_MS * (i + 1) * 2); continue; }
                 if (resp.status >= 400 && resp.status < 500) throw new Error(`HTTP ${resp.status}`);
-                // 5xx: reintentar
                 if (i < retries) await sleep(RETRY_DELAY_MS * (i + 1));
             } catch (e) {
                 if (i === retries) throw e;
@@ -398,121 +468,159 @@
     }
 
     // ══════════════════════════════════════════════
-    //  TOKEN (con caché)
+    //  TOKEN
     // ══════════════════════════════════════════════
-
     async function getToken(cuenta) {
         const cached = tokenCache[cuenta.proxy];
         if (cached && Date.now() < cached.expiresAt) {
             return { access_token: cached.token, user_id: cached.userId };
         }
-        // Fetch fresco
         const data = await jsonConRetry(`${cuenta.proxy}/get-token`);
         tokenCache[cuenta.proxy] = {
-            token:     data.access_token,
-            userId:    data.user_id,
+            token: data.access_token,
+            userId: data.user_id,
             expiresAt: Date.now() + TOKEN_TTL_MS
         };
         return data;
     }
-
-    /** Invalidar token (si un request da 401) */
-    function invalidarToken(proxy) {
-        delete tokenCache[proxy];
-    }
+    function invalidarToken(proxy) { delete tokenCache[proxy]; }
 
     // ══════════════════════════════════════════════
     //  CARGA POR CUENTA
     // ══════════════════════════════════════════════
-
     async function cargarCuenta(cuenta) {
         let { access_token, user_id } = await getToken(cuenta);
         const makeAuthOpts = () => ({ headers: { 'Authorization': `Bearer ${access_token}` } });
 
-        // Fetch todas las páginas de un substatus dado, devuelve ship IDs
+        // Traer todas las órdenes de un substatus; retorna [{sid, substatus, qty}]
         async function fetchSubstatus(substatus) {
-            const shipIds = [];
+            const items = [];
             let offset = 0;
             while (true) {
                 let data;
+                const url = `${cuenta.proxy}/api/orders/search?seller=${user_id}&offset=${offset}&limit=50&sort=date_desc&shipping.substatus=${substatus}`;
                 try {
-                    data = await jsonConRetry(
-                        `${cuenta.proxy}/api/orders/search?seller=${user_id}&offset=${offset}&limit=50&sort=date_desc&shipping.substatus=${substatus}`,
-                        makeAuthOpts()
-                    );
+                    data = await jsonConRetry(url, makeAuthOpts());
                 } catch (e) {
                     invalidarToken(cuenta.proxy);
                     ({ access_token, user_id } = await getToken(cuenta));
-                    data = await jsonConRetry(
-                        `${cuenta.proxy}/api/orders/search?seller=${user_id}&offset=${offset}&limit=50&sort=date_desc&shipping.substatus=${substatus}`,
-                        makeAuthOpts()
-                    );
+                    data = await jsonConRetry(url, makeAuthOpts());
                 }
                 const orders = data.results || [];
                 if (orders.length === 0) break;
                 for (const o of orders) {
                     const sid = o.shipping?.id;
-                    if (sid) shipIds.push({ sid, substatus });
+                    if (!sid) continue;
+                    const qty = (o.order_items || []).reduce((a, it) => a + (it.quantity || 0), 0);
+                    items.push({ sid, substatus, qty });
                 }
                 if (orders.length < 50) break;
                 offset += 50;
                 if (offset >= 1000) break;
             }
-            return shipIds;
+            return items;
         }
 
-        // ★ Ambos substatuses EN PARALELO
-        const [readyIds, bufferedIds] = await Promise.all([
+        // ★ Cuatro substatuses EN PARALELO:
+        //   ready_to_print → para imprimir
+        //   printed         → impresos pendientes de despacho
+        //   ready_for_pickup → programados para próxima colecta
+        //   buffered        → ML los juntó para combinar
+        const [readyItems, printedItems, pickupItems, bufferedItems] = await Promise.all([
             fetchSubstatus('ready_to_print'),
+            fetchSubstatus('printed'),
+            fetchSubstatus('ready_for_pickup'),
             fetchSubstatus('buffered')
         ]);
 
-        // Deduplicar por ID de shipment
+        // Deduplicar por sid con prioridad (ready > printed/pickup > buffered).
+        // printed y ready_for_pickup se agrupan juntos en "impresos sin despachar".
+        const PRIORIDAD = { ready_to_print: 4, printed: 3, ready_for_pickup: 2, buffered: 1 };
         const allShipMap = new Map();
-        for (const { sid, substatus } of [...readyIds, ...bufferedIds]) {
-            if (!allShipMap.has(sid)) allShipMap.set(sid, substatus);
+        for (const it of [...readyItems, ...printedItems, ...pickupItems, ...bufferedItems]) {
+            const existing = allShipMap.get(it.sid);
+            if (!existing) {
+                allShipMap.set(it.sid, { substatus: it.substatus, qty: it.qty });
+            } else {
+                existing.qty += it.qty;
+                if (PRIORIDAD[it.substatus] > PRIORIDAD[existing.substatus]) {
+                    existing.substatus = it.substatus;
+                }
+            }
         }
 
-        // ★ Fetch de shipments en paralelo (lotes de 30)
+        // Fetch shipments en paralelo (lotes de 30)
         const shipEntries = [...allShipMap.entries()];
         const ships = new Map();
-
         const BATCH = 30;
         for (let i = 0; i < shipEntries.length; i += BATCH) {
             setProgress(`${cuenta.nombre}: shipments ${i}/${shipEntries.length}`);
             const batch = shipEntries.slice(i, i + BATCH);
             const results = await Promise.allSettled(
-                batch.map(([sid]) =>
-                    jsonConRetry(`${cuenta.proxy}/api/shipments/${sid}`, makeAuthOpts())
-                )
+                batch.map(([sid]) => jsonConRetry(`${cuenta.proxy}/api/shipments/${sid}`, makeAuthOpts()))
             );
             for (const r of results) {
-                if (r.status === 'fulfilled' && r.value?.id) {
-                    ships.set(r.value.id, r.value);
-                }
+                if (r.status === 'fulfilled' && r.value?.id) ships.set(r.value.id, r.value);
             }
         }
 
         // Contar
-        let flex = 0, colecta = 0, buffered = 0;
+        const ready   = { flex: 0, flexUni: 0, colecta: 0, colectaUni: 0 };
+        const printed = { flex: 0, flexUni: 0, colecta: 0, colectaUni: 0 };
+        let buffered = 0, bufferedUni = 0;
+
         ships.forEach(s => {
-            if (s.substatus === 'ready_to_print') {
-                if (s.logistic_type === 'self_service') flex++;
-                else colecta++;
-            } else if (s.substatus === 'buffered') {
+            const meta = allShipMap.get(s.id);
+            if (!meta) return;
+            const isFlex = s.logistic_type === 'self_service';
+            const q = meta.qty;
+
+            if (meta.substatus === 'ready_to_print') {
+                if (isFlex) { ready.flex++; ready.flexUni += q; }
+                else        { ready.colecta++; ready.colectaUni += q; }
+            } else if (meta.substatus === 'printed' || meta.substatus === 'ready_for_pickup') {
+                if (isFlex) { printed.flex++; printed.flexUni += q; }
+                else        { printed.colecta++; printed.colectaUni += q; }
+            } else if (meta.substatus === 'buffered') {
                 buffered++;
+                bufferedUni += q;
             }
         });
 
-        return { cuenta, flex, colecta, imprimir: flex + colecta, buffered, total: flex + colecta };
+        ready.total    = ready.flex + ready.colecta;
+        ready.totalUni = ready.flexUni + ready.colectaUni;
+        printed.total    = printed.flex + printed.colecta;
+        printed.totalUni = printed.flexUni + printed.colectaUni;
+
+        return { cuenta, ready, printed, buffered, bufferedUni };
+    }
+
+    // ══════════════════════════════════════════════
+    //  CARGA DE HORARIOS DESDE WORKER
+    // ══════════════════════════════════════════════
+    async function cargarHorarios() {
+        await Promise.allSettled(CUENTAS.map(async c => {
+            try {
+                const res = await fetch(`${AUTH_WORKER}/get-horario/${c.nombre.toLowerCase()}`);
+                if (!res.ok) return;
+                const data = await res.json();
+                if (data.horarios) {
+                    // Las keys del worker vienen como strings ("1","2"...), convertimos a números
+                    const h = {};
+                    for (const [k, v] of Object.entries(data.horarios)) h[Number(k)] = v;
+                    HORARIOS[c.nombre] = h;
+                    console.log(`[Horarios] ${c.nombre} cargados (${data.fecha}):`, h);
+                }
+            } catch(e) {
+                console.log(`[Horarios] ${c.nombre}: sin datos del worker`);
+            }
+        }));
     }
 
     // ══════════════════════════════════════════════
     //  ORQUESTACIÓN
     // ══════════════════════════════════════════════
-
     async function cargarTodo(usarCachePrevia = false) {
-        // Si hay caché reciente y no es carga forzada, mostrarla
         if (usarCachePrevia && resultadosCache && Date.now() - resultadosCache.fetchedAt < RESULTS_TTL_MS) {
             renderResultados(resultadosCache.data, true);
             return;
@@ -523,7 +631,6 @@
         document.getElementById('reloadIcon').textContent = '⟳';
         btn.querySelector('span').style.animation = 'spin 0.7s linear infinite';
 
-        // Si hay datos cacheados, mostrarlos mientras carga
         if (resultadosCache) {
             renderResultados(resultadosCache.data, true);
         } else {
@@ -533,18 +640,22 @@
                     <div class="spinner"></div>
                     Cargando paquetes...
                     <div class="progress-text" id="progress"></div>
-                </div>
-            `;
+                </div>`;
         }
 
         setStatus('loading');
 
-        // ★ Ambas cuentas EN PARALELO
-        const settled = await Promise.allSettled(CUENTAS.map(c => cargarCuenta(c)));
+        // Horarios y paquetes en paralelo
+        const [settled] = await Promise.all([
+            Promise.allSettled(CUENTAS.map(c => cargarCuenta(c))),
+            cargarHorarios()
+        ]);
+
+        const empty = () => ({ flex: 0, flexUni: 0, colecta: 0, colectaUni: 0, total: 0, totalUni: 0 });
         const resultados = settled.map((r, i) => {
             if (r.status === 'fulfilled') return r.value;
             console.error(`Error ${CUENTAS[i].nombre}:`, r.reason);
-            return { cuenta: CUENTAS[i], flex: 0, colecta: 0, imprimir: 0, buffered: 0, total: 0, error: true };
+            return { cuenta: CUENTAS[i], ready: empty(), printed: empty(), buffered: 0, bufferedUni: 0, error: true };
         });
         const hayError = resultados.some(r => r.error);
 
@@ -560,68 +671,140 @@
     // ══════════════════════════════════════════════
     //  RENDER
     // ══════════════════════════════════════════════
+    function renderCellNumero(n, u, colClass, extraClass = '') {
+        return `
+            <div class="cell ${colClass} ${extraClass}">
+                <div class="num ${n === 0 ? 'zero' : ''}">${n}</div>
+                <div class="uni ${u === 0 ? 'zero' : ''}">${u} u</div>
+            </div>`;
+    }
+
+    function renderCuentaTable(ready, printed) {
+        return `
+            <div class="metrics-table">
+                <div></div>
+                <div class="th imprimir">🖨️ Imprimir</div>
+                <div class="th despachar">📬 Impresos</div>
+
+                <div class="row-label flex"><span class="dot"></span>Flex</div>
+                ${renderCellNumero(ready.flex, ready.flexUni, 'col-imprimir')}
+                ${renderCellNumero(printed.flex, printed.flexUni, 'col-despachar')}
+
+                <div class="row-label colecta"><span class="dot"></span>Colecta</div>
+                ${renderCellNumero(ready.colecta, ready.colectaUni, 'col-imprimir')}
+                ${renderCellNumero(printed.colecta, printed.colectaUni, 'col-despachar')}
+
+                <div style="border-top:1px solid var(--border);padding-top:10px;margin-top:4px;"></div>
+                ${renderCellNumero(ready.total, ready.totalUni, 'col-imprimir', 'total-imprimir')}
+                ${renderCellNumero(printed.total, printed.totalUni, 'col-despachar', 'total-despachar')}
+            </div>`;
+    }
+
+    function getHorarioHoy(cuentaNombre) {
+        const horarios = HORARIOS[cuentaNombre];
+        if (!horarios) return null;
+        const h = horarios[new Date().getDay()];
+        // Si vino del worker como {cutoff: null, action: null}, tratar como null
+        if (!h || !h.cutoff) return null;
+        return h;
+    }
+
+    function renderCutoff(horario, readyTotal) {
+        if (!horario) {
+            return `
+                <div class="card-cutoff">
+                    <span style="opacity:0.6">💤 Sin colecta hoy</span>
+                </div>`;
+        }
+        // Calculamos si está cerca el deadline (dentro de 2hs = urgente si hay pendientes)
+        const now = new Date();
+        const [h, m] = horario.cutoff.split(':').map(Number);
+        const cutoffDate = new Date();
+        cutoffDate.setHours(h, m, 0, 0);
+        const diffMin = (cutoffDate - now) / 60000;
+        const urgent = readyTotal > 0 && diffMin > 0 && diffMin < 120;
+        const passed = diffMin < 0;
+
+        const iconPrefix = passed ? '✅' : (urgent ? '⚠️' : '⏰');
+        return `
+            <div class="card-cutoff ${urgent ? 'urgent' : ''}">
+                ${iconPrefix} hasta las <b>${horario.cutoff}</b>
+            </div>`;
+    }
 
     function renderResultados(resultados, fromCache = false) {
-        const totFlex     = resultados.reduce((a, r) => a + r.flex, 0);
-        const totColecta  = resultados.reduce((a, r) => a + r.colecta, 0);
-        const totImprimir = resultados.reduce((a, r) => a + r.imprimir, 0);
-        const totBuffered = resultados.reduce((a, r) => a + r.buffered, 0);
+        const sum = (key, sub) => resultados.reduce((a, r) => a + (r[key]?.[sub] || 0), 0);
+
+        const totReady  = sum('ready', 'total');
+        const totReadyU = sum('ready', 'totalUni');
+        const totPrint  = sum('printed', 'total');
+        const totPrintU = sum('printed', 'totalUni');
+        const totBuffered = resultados.reduce((a, r) => a + (r.buffered || 0), 0);
 
         // Hero
         const heroEl = document.getElementById('hero');
         heroEl.style.display = 'block';
-        document.getElementById('heroNumber').textContent = totImprimir;
+        document.getElementById('heroNumber').textContent = totReady;
         document.getElementById('heroSub').textContent =
-            totImprimir === 1 ? 'paquete' : 'paquetes';
+            totReady === 1 ? 'paquete para imprimir' : 'paquetes para imprimir';
+        document.getElementById('heroUnits').textContent =
+            totReady > 0 ? `${totReadyU} unidad${totReadyU !== 1 ? 'es' : ''} a preparar` : '';
         document.getElementById('heroCachedBadge').style.display = fromCache ? 'inline-block' : 'none';
 
-        // Cards
+        // Cards por cuenta
         let html = '';
         resultados.forEach((r, i) => {
             const c = r.cuenta;
-            const hasPrints = r.imprimir > 0;
+            const hasPrints = (r.ready?.total || 0) > 0;
+            const horario = getHorarioHoy(c.nombre);
+            const allClear = !r.error && (r.ready?.total || 0) === 0 && (r.printed?.total || 0) === 0 && !r.buffered;
+
             html += `
             <div class="cuenta-card ${c.css} animate-in ${hasPrints ? 'has-prints' : ''}"
                  style="animation-delay:${i * 0.12}s">
-                <div class="card-header">
+                <div class="card-top">
                     <div class="card-name">${c.nombre}</div>
-                    <div class="card-imprimir">🖨️ <b>${r.imprimir}</b></div>
+                    ${renderCutoff(horario, r.ready?.total || 0)}
                 </div>
-                ${r.error ? `<div class="error-badge">⚠️ Error al cargar</div>` : `
-                <div class="stats-grid">
-                    <div class="stat-box flex">
-                        <div class="stat-num">${r.flex}</div>
-                        <div class="stat-lbl">🏍️ Flex</div>
-                    </div>
-                    <div class="stat-box colecta">
-                        <div class="stat-num">${r.colecta}</div>
-                        <div class="stat-lbl">📦 ${c.colectaLabel}</div>
-                        <div class="stat-sub">${c.colectaDesc}</div>
-                    </div>
-                </div>
-                ${r.buffered > 0 ? `<div class="buffered-row">⏳ ${r.buffered} pendiente${r.buffered !== 1 ? 's' : ''} (buffered)</div>` : ''}
-                `}
+                ${horario ? `<div class="card-cutoff-sub">${horario.action}</div>` : '<div style="margin-bottom:8px"></div>'}
+                ${r.error
+                    ? `<div class="error-badge">⚠️ Error al cargar</div>`
+                    : allClear
+                        ? `<div class="all-clear">✅ Todo al día</div>
+                           <div class="all-clear-sub">sin paquetes pendientes</div>`
+                        : renderCuentaTable(r.ready, r.printed)
+                }
+                ${r.buffered > 0 ? `<div class="buffered-row">⏳ ${r.buffered} en buffered · ${r.bufferedUni || 0} u</div>` : ''}
             </div>`;
         });
 
         // Total card
+        const totalReady   = {
+            flex: sum('ready', 'flex'), flexUni: sum('ready', 'flexUni'),
+            colecta: sum('ready', 'colecta'), colectaUni: sum('ready', 'colectaUni'),
+            total: totReady, totalUni: totReadyU
+        };
+        const totalPrinted = {
+            flex: sum('printed', 'flex'), flexUni: sum('printed', 'flexUni'),
+            colecta: sum('printed', 'colecta'), colectaUni: sum('printed', 'colectaUni'),
+            total: totPrint, totalUni: totPrintU
+        };
+        const totalAllClear = totReady === 0 && totPrint === 0 && !totBuffered;
+
         html += `
         <div class="cuenta-card total animate-in" style="animation-delay:${resultados.length * 0.12}s">
-            <div class="card-header">
+            <div class="card-top">
                 <div class="card-name">Total</div>
-                <div class="card-imprimir">🖨️ <b>${totImprimir}</b></div>
-            </div>
-            <div class="stats-grid">
-                <div class="stat-box flex">
-                    <div class="stat-num">${totFlex}</div>
-                    <div class="stat-lbl">🏍️ Flex</div>
-                </div>
-                <div class="stat-box colecta">
-                    <div class="stat-num">${totColecta}</div>
-                    <div class="stat-lbl">📦 Colecta</div>
+                <div class="card-cutoff" style="font-size:11px">
+                    <span style="color:var(--muted-2)">${totReady + totPrint} paq · ${totReadyU + totPrintU} u</span>
                 </div>
             </div>
-            ${totBuffered > 0 ? `<div class="buffered-row">⏳ ${totBuffered} pendiente${totBuffered !== 1 ? 's' : ''} (buffered)</div>` : ''}
+            <div style="margin-bottom:8px"></div>
+            ${totalAllClear
+                ? `<div class="all-clear">✅ Todo al día</div>`
+                : renderCuentaTable(totalReady, totalPrinted)
+            }
+            ${totBuffered > 0 ? `<div class="buffered-row">⏳ ${totBuffered} en buffered</div>` : ''}
         </div>`;
 
         document.getElementById('content').innerHTML = html;
@@ -630,7 +813,6 @@
     // ══════════════════════════════════════════════
     //  UI UTILS
     // ══════════════════════════════════════════════
-
     function setProgress(txt) {
         const el = document.getElementById('progress');
         if (el) el.textContent = txt;
@@ -643,23 +825,23 @@
     }
 
     function setStatus(state) {
-        const row  = document.getElementById('statusRow');
-        const dot  = document.getElementById('statusDot');
-        const txt  = document.getElementById('statusText');
+        const row = document.getElementById('statusRow');
+        const dot = document.getElementById('statusDot');
+        const txt = document.getElementById('statusText');
         row.style.display = 'flex';
 
         if (state === 'loading') {
-            dot.className = 'dot';
+            dot.className = 'dot-status';
             txt.textContent = 'actualizando...';
         } else if (state === 'live') {
-            dot.className = 'dot live';
+            dot.className = 'dot-status live';
             const d = resultadosCache ? new Date(resultadosCache.fetchedAt) : new Date();
             txt.textContent = `actualizado ${d.toLocaleTimeString('es-AR', { hour: '2-digit', minute: '2-digit' })}`;
         } else if (state === 'error') {
-            dot.className = 'dot error';
+            dot.className = 'dot-status error';
             txt.textContent = 'error en alguna cuenta';
         } else if (state === 'cached') {
-            dot.className = 'dot cached';
+            dot.className = 'dot-status cached';
             txt.textContent = 'datos en caché';
         }
     }
@@ -667,13 +849,10 @@
     // ══════════════════════════════════════════════
     //  AUTO-REFRESH & GESTOS
     // ══════════════════════════════════════════════
-
-    // Auto-refresh cada 5 minutos
     setInterval(() => {
         if (!document.getElementById('reloadBtn').disabled) cargarTodo(false);
     }, 5 * 60 * 1000);
 
-    // Pull to refresh
     let touchStartY = 0;
     document.addEventListener('touchstart', e => {
         if (window.scrollY === 0) touchStartY = e.touches[0].clientY;
@@ -685,7 +864,6 @@
         }
     }, { passive: true });
 
-    // Service Worker
     if ('serviceWorker' in navigator) {
         navigator.serviceWorker.register('sw.js').catch(() => {});
     }
