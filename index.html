@@ -15,11 +15,12 @@
         :root {
             --bg: #080810;
             --surface: #0f0f1a;
+            --surface-2: #16162a;
             --border: #1c1c2e;
             --border-bright: #2a2a40;
             --text: #e0e0f0;
-            --muted: #555570;
-            --muted-2: #7a7a95;
+            --muted: #6a6a85;
+            --muted-2: #8a8aa5;
             --yellow: #FFE600;
             --green: #00e676;
             --blue: #40c4ff;
@@ -29,17 +30,14 @@
         }
 
         * { margin: 0; padding: 0; box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+        html, body { overflow-x: hidden; }
 
         body {
             font-family: 'Space Grotesk', sans-serif;
             background: var(--bg);
             color: var(--text);
             min-height: 100vh;
-            padding: 0 0 40px;
-            background-image:
-                linear-gradient(rgba(255,230,0,0.015) 1px, transparent 1px),
-                linear-gradient(90deg, rgba(255,230,0,0.015) 1px, transparent 1px);
-            background-size: 40px 40px;
+            padding: 0 0 24px;
         }
 
         /* ── HEADER ── */
@@ -47,20 +45,16 @@
             position: sticky;
             top: 0;
             z-index: 100;
-            background: rgba(8,8,16,0.92);
+            background: rgba(8,8,16,0.94);
             backdrop-filter: blur(12px);
             -webkit-backdrop-filter: blur(12px);
             border-bottom: 1px solid var(--border);
-            padding: 14px 20px;
+            padding: 12px 16px;
             display: flex;
             align-items: center;
             justify-content: space-between;
         }
-        .header-title {
-            font-size: 17px;
-            font-weight: 700;
-            letter-spacing: -0.3px;
-        }
+        .header-title { font-size: 15px; font-weight: 700; letter-spacing: -0.3px; }
         .header-title span { color: var(--yellow); }
         .header-time {
             font-family: 'Space Mono', monospace;
@@ -71,40 +65,55 @@
         /* ── HERO ── */
         .hero {
             text-align: center;
-            padding: 28px 20px 20px;
+            padding: 18px 16px 10px;
             display: none;
         }
         .hero-label {
-            font-size: 11px;
+            font-size: 10px;
             font-weight: 500;
             text-transform: uppercase;
-            letter-spacing: 3px;
+            letter-spacing: 2.5px;
             color: var(--muted);
-            margin-bottom: 8px;
+            margin-bottom: 4px;
+        }
+        .hero-number-row {
+            display: flex;
+            align-items: baseline;
+            justify-content: center;
+            gap: 14px;
         }
         .hero-number {
             font-family: 'Space Mono', monospace;
-            font-size: 72px;
+            font-size: 60px;
             font-weight: 700;
             color: var(--yellow);
             line-height: 1;
-            text-shadow: 0 0 40px rgba(255,230,0,0.3);
+            text-shadow: 0 0 32px rgba(255,230,0,0.28);
         }
-        .hero-sub {
-            font-size: 13px;
+        .hero-avg {
+            font-family: 'Space Mono', monospace;
+            font-size: 18px;
+            font-weight: 500;
+            color: var(--muted-2);
+        }
+        .hero-avg small {
+            font-family: 'Space Grotesk', sans-serif;
+            font-size: 9px;
             color: var(--muted);
-            margin-top: 6px;
+            display: block;
+            text-transform: uppercase;
+            letter-spacing: 1px;
         }
+        .hero-sub { font-size: 12px; color: var(--muted); margin-top: 3px; }
         .hero-units {
             font-family: 'Space Mono', monospace;
             font-size: 11px;
             color: rgba(255,230,0,0.55);
-            margin-top: 4px;
-            letter-spacing: 0.5px;
+            margin-top: 2px;
         }
         .hero-cached-badge {
             display: inline-block;
-            margin-top: 8px;
+            margin-top: 6px;
             background: rgba(255,230,0,0.08);
             border: 1px solid rgba(255,230,0,0.2);
             color: rgba(255,230,0,0.6);
@@ -115,18 +124,16 @@
         }
 
         /* ── REFRESH BTN ── */
-        .refresh-wrap {
-            padding: 0 20px 16px;
-        }
+        .refresh-wrap { padding: 0 16px 10px; }
         .reload-btn {
             width: 100%;
             background: transparent;
             border: 1px solid var(--border-bright);
             color: var(--muted);
-            padding: 12px;
+            padding: 8px;
             border-radius: 10px;
             font-family: 'Space Grotesk', sans-serif;
-            font-size: 14px;
+            font-size: 13px;
             font-weight: 500;
             cursor: pointer;
             transition: all 0.2s;
@@ -139,16 +146,19 @@
         .reload-btn:disabled { opacity: 0.35; cursor: wait; }
 
         /* ── CARDS ── */
-        .content { padding: 0 16px; }
+        .content { padding: 0 12px; }
 
         .cuenta-card {
             background: var(--surface);
             border: 1px solid var(--border);
-            border-radius: 18px;
-            padding: 16px 16px 14px;
-            margin-bottom: 12px;
+            border-radius: 14px;
+            padding: 12px 14px 14px;
+            margin-bottom: 10px;
             position: relative;
             overflow: hidden;
+            cursor: pointer;
+            user-select: none;
+            -webkit-user-select: none;
         }
         .cuenta-card::before {
             content: '';
@@ -159,171 +169,182 @@
         .cuenta-card.mikra::before { background: linear-gradient(90deg, #9C27B0, #d070ff); }
         .cuenta-card.chaya::before { background: linear-gradient(90deg, #FF6B00, #ffaa44); }
         .cuenta-card.total {
-            background: linear-gradient(135deg, var(--surface), #0f0f20);
-            border-color: rgba(255,230,0,0.15);
+            background: linear-gradient(135deg, var(--surface), #14142a);
+            border-color: rgba(255,230,0,0.18);
+            cursor: default;
         }
         .cuenta-card.total::before { background: linear-gradient(90deg, #b8a000, var(--yellow)); }
 
-        .card-top {
+        .card-header-row {
             display: flex;
             justify-content: space-between;
-            align-items: baseline;
-            margin-bottom: 4px;
+            align-items: center;
+            gap: 8px;
+            margin-bottom: 10px;
         }
-        .card-name {
-            font-size: 17px;
-            font-weight: 700;
-            letter-spacing: -0.3px;
-        }
+        .card-name { font-size: 15px; font-weight: 700; letter-spacing: -0.2px; }
         .mikra .card-name { color: var(--purple); }
         .chaya .card-name { color: var(--orange); }
         .total .card-name { color: var(--yellow); }
 
-        .card-cutoff {
-            font-family: 'Space Mono', monospace;
-            font-size: 11px;
-            color: var(--muted-2);
+        .card-horario {
             display: flex;
             align-items: center;
             gap: 4px;
-        }
-        .card-cutoff b {
-            color: var(--text);
-            font-weight: 700;
-        }
-        .card-cutoff.urgent b { color: var(--red); }
-
-        .card-cutoff-sub {
             font-family: 'Space Mono', monospace;
-            font-size: 10px;
-            color: var(--muted);
-            text-align: right;
-            margin-bottom: 12px;
-            opacity: 0.8;
+            font-size: 12px;
+            color: var(--muted-2);
+        }
+        .card-horario b { color: var(--text); font-weight: 700; }
+        .card-horario.urgent b {
+            color: var(--red);
+            animation: pulse-txt 1.5s ease infinite;
+        }
+        .card-horario.passed { opacity: 0.45; }
+        .card-horario.none { opacity: 0.5; font-size: 11px; }
+
+        @keyframes pulse-txt {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.6; }
         }
 
-        /* ── TABLA compacta de métricas ── */
-        .metrics-table {
-            display: grid;
-            grid-template-columns: auto 1fr 1fr;
-            gap: 4px 10px;
-            font-family: 'Space Mono', monospace;
-            font-size: 14px;
-            padding: 10px 6px 6px;
-            border-top: 1px solid var(--border);
-            border-bottom: 1px solid var(--border);
-        }
-        .metrics-table .th {
+        /* ── SECCIÓN Flex/Colecta con números grandes ── */
+        .section-label {
             font-size: 10px;
             font-weight: 700;
             color: var(--muted);
             text-transform: uppercase;
-            letter-spacing: 1.2px;
-            padding-bottom: 8px;
-            border-bottom: 1px solid var(--border);
-            margin-bottom: 4px;
-            text-align: center;
+            letter-spacing: 1.8px;
+            margin-bottom: 8px;
+            padding-left: 2px;
         }
-        /* Imprimir = amarillo vivo */
-        .metrics-table .th.imprimir { color: #ffddaa; }
-        /* Impresos = muy apagado */
-        .metrics-table .th.despachar { color: #3a3a52; }
+        .section-label.imprimir { color: #ffddaa; }
+        .section-label.impresos { color: var(--muted-2); }
 
-        .metrics-table .row-label {
-            font-size: 12px;
-            font-family: 'Space Grotesk', sans-serif;
+        .tipo-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 8px;
+        }
+
+        .tipo-box {
+            background: var(--surface-2);
+            border-radius: 10px;
+            padding: 10px 8px 9px;
+            text-align: center;
+            position: relative;
+            overflow: hidden;
+        }
+        .tipo-box::before {
+            content: '';
+            position: absolute;
+            top: 0; left: 0;
+            width: 3px; height: 100%;
+        }
+        .tipo-box.flex::before { background: var(--green); }
+        .tipo-box.colecta::before { background: var(--blue); }
+
+        .tipo-lbl {
+            font-size: 10px;
             color: var(--muted);
-            display: flex;
-            align-items: center;
-            gap: 6px;
-            padding: 6px 4px;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 0.8px;
+            margin-bottom: 2px;
         }
-        .metrics-table .row-label .dot {
-            width: 6px; height: 6px; border-radius: 50%;
-        }
-        .metrics-table .row-label.flex .dot { background: var(--green); }
-        .metrics-table .row-label.colecta .dot { background: var(--blue); }
-
-        .metrics-table .cell {
-            text-align: center;
-            padding: 6px 4px;
-            border-radius: 6px;
-        }
-        /* Columna IMPRIMIR: números grandes y vivos */
-        .col-imprimir .num {
-            font-size: 22px;
+        .tipo-num {
+            font-family: 'Space Mono', monospace;
+            font-size: 30px;
             font-weight: 700;
             color: var(--text);
+            line-height: 1;
         }
-        .col-imprimir .num.zero { color: #2e2e44; font-weight: 400; font-size: 18px; }
-        .col-imprimir .uni { font-size: 10px; color: var(--muted); margin-top: 2px; }
-        .col-imprimir .uni.zero { color: #2e2e44; }
-
-        /* Columna IMPRESOS: todo muy grisado, secundario */
-        .col-despachar .num {
-            font-size: 15px;
-            font-weight: 500;
-            color: #4a4a66;
-        }
-        .col-despachar .num.zero { color: #2a2a3e; font-weight: 400; }
-        .col-despachar .uni { font-size: 10px; color: #3a3a52; margin-top: 2px; }
-        .col-despachar .uni.zero { color: #2a2a3e; }
-
-        /* Fila total */
-        .metrics-table .cell.total-imprimir .num { color: var(--yellow); font-size: 22px; }
-        .metrics-table .cell.total-imprimir .num.zero { color: #2e2e44; }
-        .metrics-table .cell.total-despachar .num { color: #4a4a66; font-size: 15px; }
-        .metrics-table .cell.total-despachar .num.zero { color: #2a2a3e; }
-        .buffered-row {
-            margin-top: 10px;
-            text-align: center;
-            font-size: 11px;
-            color: #6a6a85;
+        .tipo-num.zero { color: #3a3a55; font-weight: 400; }
+        .tipo-uni {
             font-family: 'Space Mono', monospace;
-            padding-top: 8px;
+            font-size: 11px;
+            color: var(--muted-2);
+            margin-top: 3px;
+        }
+        .tipo-uni.zero { color: #3a3a55; }
+
+        /* Impresos: más chicos que imprimir pero legibles */
+        .impresos-grid .tipo-num { font-size: 24px; color: var(--muted-2); }
+        .impresos-grid .tipo-num.zero { color: #3a3a55; }
+        .impresos-grid .tipo-uni { color: var(--muted); }
+        .impresos-grid .tipo-box { background: rgba(22,22,42,0.5); }
+
+        /* ── DETALLE EXPANDIBLE (Impresos) ── */
+        .card-impresos {
+            max-height: 0;
+            overflow: hidden;
+            transition: max-height 0.35s ease, margin-top 0.35s ease, padding-top 0.35s ease;
+        }
+        .cuenta-card.expanded .card-impresos {
+            max-height: 180px;
+            margin-top: 12px;
+            padding-top: 12px;
+            border-top: 1px solid var(--border);
+        }
+        .cuenta-card.expanded .expand-hint { opacity: 0; height: 0; margin: 0; padding: 0; }
+
+        .expand-hint {
+            text-align: center;
+            margin-top: 8px;
+            font-size: 10px;
+            color: var(--muted);
+            transition: opacity 0.3s;
+            font-family: 'Space Mono', monospace;
+        }
+
+        /* ── Buffered ── */
+        .buffered-row {
+            margin-top: 8px;
+            text-align: center;
+            font-size: 10px;
+            color: var(--muted);
+            font-family: 'Space Mono', monospace;
         }
 
         /* ── Todo al día ── */
-        .all-clear {
-            text-align: center;
-            padding: 20px 0 8px;
+        .all-clear-compact {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 6px;
+            padding: 14px;
+            background: rgba(0,230,118,0.06);
+            border: 1px solid rgba(0,230,118,0.18);
+            border-radius: 9px;
             color: var(--green);
-            font-size: 14px;
-            font-weight: 500;
-        }
-        .all-clear-sub {
-            text-align: center;
-            color: var(--muted);
-            font-size: 11px;
-            font-family: 'Space Mono', monospace;
-            margin-top: 2px;
+            font-size: 13px;
+            font-weight: 600;
         }
 
-        /* ── ERROR STATE ── */
+        /* ── ERROR ── */
         .error-badge {
-            display: inline-block;
+            padding: 10px;
             background: rgba(255,68,68,0.1);
             border: 1px solid rgba(255,68,68,0.25);
             color: #ff7070;
-            border-radius: 8px;
-            font-size: 11px;
-            padding: 4px 10px;
-            margin-top: 8px;
+            border-radius: 9px;
+            font-size: 12px;
+            text-align: center;
         }
 
         /* ── LOADING ── */
         .loading-state {
             text-align: center;
-            padding: 60px 20px;
+            padding: 40px 20px;
             color: var(--muted);
         }
         .spinner {
-            width: 36px; height: 36px;
+            width: 32px; height: 32px;
             border: 3px solid #1c1c2e;
             border-top-color: var(--yellow);
             border-radius: 50%;
             animation: spin 0.7s linear infinite;
-            margin: 0 auto 16px;
+            margin: 0 auto 14px;
         }
         @keyframes spin { to { transform: rotate(360deg); } }
         .progress-text {
@@ -335,16 +356,16 @@
 
         /* ── ANIMATIONS ── */
         @keyframes fadeUp {
-            from { opacity: 0; transform: translateY(12px); }
+            from { opacity: 0; transform: translateY(8px); }
             to { opacity: 1; transform: translateY(0); }
         }
-        .animate-in { animation: fadeUp 0.35s ease forwards; }
+        .animate-in { animation: fadeUp 0.3s ease forwards; }
 
-        @keyframes pulse-red {
+        @keyframes pulse-border {
             0%, 100% { box-shadow: 0 0 0 0 transparent; }
-            50% { box-shadow: 0 0 16px 2px rgba(255,68,68,0.15); }
+            50% { box-shadow: 0 0 12px 1px rgba(255,230,0,0.12); }
         }
-        .has-prints { animation: pulse-red 2.5s ease infinite; }
+        .has-prints { animation: pulse-border 2.5s ease infinite; }
 
         /* ── STATUS DOT ── */
         .status-row {
@@ -352,7 +373,7 @@
             align-items: center;
             justify-content: center;
             gap: 6px;
-            padding: 16px 20px 0;
+            padding: 14px 16px 0;
             font-family: 'Space Mono', monospace;
             font-size: 10px;
             color: var(--muted);
@@ -361,6 +382,19 @@
         .dot-status.live { background: var(--green); box-shadow: 0 0 6px var(--green); }
         .dot-status.cached { background: var(--yellow); box-shadow: 0 0 6px var(--yellow); }
         .dot-status.error { background: var(--red); }
+
+        /* ── HORARIO STALE WARNING ── */
+        .stale-warning {
+            margin: 8px 16px 0;
+            padding: 8px 10px;
+            background: rgba(255,170,68,0.1);
+            border: 1px solid rgba(255,170,68,0.25);
+            border-radius: 8px;
+            font-size: 11px;
+            color: var(--orange);
+            text-align: center;
+            display: none;
+        }
     </style>
 </head>
 <body>
@@ -371,11 +405,19 @@
 
     <div class="hero" id="hero">
         <div class="hero-label">Para imprimir</div>
-        <div class="hero-number" id="heroNumber">0</div>
+        <div class="hero-number-row">
+            <div class="hero-number" id="heroNumber">0</div>
+            <div class="hero-avg" id="heroAvg" style="display:none">
+                <span id="heroAvgNum">—</span>
+                <small>u/paq</small>
+            </div>
+        </div>
         <div class="hero-sub" id="heroSub">paquetes</div>
         <div class="hero-units" id="heroUnits"></div>
         <div id="heroCachedBadge" style="display:none" class="hero-cached-badge">⚡ datos en caché</div>
     </div>
+
+    <div id="staleWarning" class="stale-warning">⚠️ Horarios desactualizados · recargá ventas</div>
 
     <div class="refresh-wrap">
         <button class="reload-btn" id="reloadBtn" onclick="cargarTodo(false)">
@@ -415,19 +457,17 @@
         }
     ];
 
-    // Worker de horarios (actualizado automáticamente por Tampermonkey)
     const AUTH_WORKER = 'https://ml-auth-codes.rafaelassir.workers.dev';
-
-    // Horarios en memoria (se cargan del worker al iniciar)
     let HORARIOS = { Mikra: {}, Chaya: {} };
+    let HORARIOS_META = { Mikra: null, Chaya: null };  // {fecha, updated}
 
-    const TOKEN_TTL_MS   = 55 * 60 * 1000;   // 55 min
-    const RESULTS_TTL_MS =  3 * 60 * 1000;   // 3 min caché
+    const TOKEN_TTL_MS   = 55 * 60 * 1000;
+    const RESULTS_TTL_MS =  3 * 60 * 1000;
     const FETCH_TIMEOUT  = 12_000;
     const MAX_RETRIES    = 3;
     const RETRY_DELAY_MS = 600;
+    const STALE_DAYS     = 2;  // si el horario es más viejo que esto, warning
 
-    // ── Caché en memoria ──
     const tokenCache = {};
     let   resultadosCache = null;
 
@@ -439,11 +479,8 @@
     async function fetchConTimeout(url, opts = {}, timeout = FETCH_TIMEOUT) {
         const ctrl = new AbortController();
         const timer = setTimeout(() => ctrl.abort(), timeout);
-        try {
-            return await fetch(url, { ...opts, signal: ctrl.signal });
-        } finally {
-            clearTimeout(timer);
-        }
+        try { return await fetch(url, { ...opts, signal: ctrl.signal }); }
+        finally { clearTimeout(timer); }
     }
 
     async function fetchConRetry(url, opts = {}, retries = MAX_RETRIES) {
@@ -492,7 +529,6 @@
         let { access_token, user_id } = await getToken(cuenta);
         const makeAuthOpts = () => ({ headers: { 'Authorization': `Bearer ${access_token}` } });
 
-        // Traer todas las órdenes de un substatus; retorna [{sid, substatus, qty}]
         async function fetchSubstatus(substatus) {
             const items = [];
             let offset = 0;
@@ -521,11 +557,6 @@
             return items;
         }
 
-        // ★ Cuatro substatuses EN PARALELO:
-        //   ready_to_print → para imprimir
-        //   printed         → impresos pendientes de despacho
-        //   ready_for_pickup → programados para próxima colecta
-        //   buffered        → ML los juntó para combinar
         const [readyItems, printedItems, pickupItems, bufferedItems] = await Promise.all([
             fetchSubstatus('ready_to_print'),
             fetchSubstatus('printed'),
@@ -533,8 +564,6 @@
             fetchSubstatus('buffered')
         ]);
 
-        // Deduplicar por sid con prioridad (ready > printed/pickup > buffered).
-        // printed y ready_for_pickup se agrupan juntos en "impresos sin despachar".
         const PRIORIDAD = { ready_to_print: 4, printed: 3, ready_for_pickup: 2, buffered: 1 };
         const allShipMap = new Map();
         for (const it of [...readyItems, ...printedItems, ...pickupItems, ...bufferedItems]) {
@@ -549,7 +578,6 @@
             }
         }
 
-        // Fetch shipments en paralelo (lotes de 30)
         const shipEntries = [...allShipMap.entries()];
         const ships = new Map();
         const BATCH = 30;
@@ -564,7 +592,6 @@
             }
         }
 
-        // Contar
         const ready   = { flex: 0, flexUni: 0, colecta: 0, colectaUni: 0 };
         const printed = { flex: 0, flexUni: 0, colecta: 0, colectaUni: 0 };
         let buffered = 0, bufferedUni = 0;
@@ -596,7 +623,7 @@
     }
 
     // ══════════════════════════════════════════════
-    //  CARGA DE HORARIOS DESDE WORKER
+    //  HORARIOS DEL WORKER
     // ══════════════════════════════════════════════
     async function cargarHorarios() {
         await Promise.allSettled(CUENTAS.map(async c => {
@@ -605,16 +632,32 @@
                 if (!res.ok) return;
                 const data = await res.json();
                 if (data.horarios) {
-                    // Las keys del worker vienen como strings ("1","2"...), convertimos a números
                     const h = {};
                     for (const [k, v] of Object.entries(data.horarios)) h[Number(k)] = v;
                     HORARIOS[c.nombre] = h;
-                    console.log(`[Horarios] ${c.nombre} cargados (${data.fecha}):`, h);
+                    HORARIOS_META[c.nombre] = { fecha: data.fecha, updated: data.updated };
                 }
-            } catch(e) {
-                console.log(`[Horarios] ${c.nombre}: sin datos del worker`);
-            }
+            } catch(e) {}
         }));
+    }
+
+    function checkStaleness() {
+        const warning = document.getElementById('staleWarning');
+        const now = Date.now();
+        let maxAge = 0;
+        for (const c of CUENTAS) {
+            const meta = HORARIOS_META[c.nombre];
+            if (!meta?.updated) continue;
+            const age = (now - new Date(meta.updated).getTime()) / (1000 * 60 * 60 * 24);
+            if (age > maxAge) maxAge = age;
+        }
+        if (maxAge > STALE_DAYS) {
+            const dias = Math.floor(maxAge);
+            warning.textContent = `⚠️ Horarios de hace ${dias} día${dias !== 1 ? 's' : ''} · recargá /ventas/ en ambas cuentas`;
+            warning.style.display = 'block';
+        } else {
+            warning.style.display = 'none';
+        }
     }
 
     // ══════════════════════════════════════════════
@@ -645,7 +688,6 @@
 
         setStatus('loading');
 
-        // Horarios y paquetes en paralelo
         const [settled] = await Promise.all([
             Promise.allSettled(CUENTAS.map(c => cargarCuenta(c))),
             cargarHorarios()
@@ -661,6 +703,7 @@
 
         resultadosCache = { data: resultados, fetchedAt: Date.now() };
         renderResultados(resultados, false);
+        checkStaleness();
 
         btn.disabled = false;
         btn.querySelector('span').style.animation = '';
@@ -669,66 +712,70 @@
     }
 
     // ══════════════════════════════════════════════
-    //  RENDER
+    //  RENDER HELPERS
     // ══════════════════════════════════════════════
-    function renderCellNumero(n, u, colClass, extraClass = '') {
-        return `
-            <div class="cell ${colClass} ${extraClass}">
-                <div class="num ${n === 0 ? 'zero' : ''}">${n}</div>
-                <div class="uni ${u === 0 ? 'zero' : ''}">${u} u</div>
-            </div>`;
-    }
-
-    function renderCuentaTable(ready, printed) {
-        return `
-            <div class="metrics-table">
-                <div></div>
-                <div class="th imprimir">🖨️ Imprimir</div>
-                <div class="th despachar">📬 Impresos</div>
-
-                <div class="row-label flex"><span class="dot"></span>Flex</div>
-                ${renderCellNumero(ready.flex, ready.flexUni, 'col-imprimir')}
-                ${renderCellNumero(printed.flex, printed.flexUni, 'col-despachar')}
-
-                <div class="row-label colecta"><span class="dot"></span>Colecta</div>
-                ${renderCellNumero(ready.colecta, ready.colectaUni, 'col-imprimir')}
-                ${renderCellNumero(printed.colecta, printed.colectaUni, 'col-despachar')}
-
-                <div style="border-top:1px solid var(--border);padding-top:10px;margin-top:4px;"></div>
-                ${renderCellNumero(ready.total, ready.totalUni, 'col-imprimir', 'total-imprimir')}
-                ${renderCellNumero(printed.total, printed.totalUni, 'col-despachar', 'total-despachar')}
-            </div>`;
-    }
-
     function getHorarioHoy(cuentaNombre) {
         const horarios = HORARIOS[cuentaNombre];
         if (!horarios) return null;
         const h = horarios[new Date().getDay()];
-        // Si vino del worker como {cutoff: null, action: null}, tratar como null
         if (!h || !h.cutoff) return null;
         return h;
     }
 
-    function renderCutoff(horario, readyTotal) {
-        if (!horario) {
-            return `
-                <div class="card-cutoff">
-                    <span style="opacity:0.6">💤 Sin colecta hoy</span>
-                </div>`;
-        }
-        // Calculamos si está cerca el deadline (dentro de 2hs = urgente si hay pendientes)
-        const now = new Date();
-        const [h, m] = horario.cutoff.split(':').map(Number);
-        const cutoffDate = new Date();
-        cutoffDate.setHours(h, m, 0, 0);
-        const diffMin = (cutoffDate - now) / 60000;
-        const urgent = readyTotal > 0 && diffMin > 0 && diffMin < 120;
-        const passed = diffMin < 0;
+    function extraerHorarioPrincipal(action) {
+        if (!action) return null;
+        const rango = action.match(/(\d{1,2}:\d{2})\s*[-–]\s*(\d{1,2}:\d{2})/);
+        if (rango) return `${rango[1]}-${rango[2]}`;
+        const hora = action.match(/(\d{1,2}:\d{2})/);
+        if (hora) return hora[1];
+        return action;
+    }
 
-        const iconPrefix = passed ? '✅' : (urgent ? '⚠️' : '⏰');
+    function extraerHoraTope(action) {
+        if (!action) return null;
+        const m = action.match(/(\d{1,2}):(\d{2})/);
+        if (!m) return null;
+        return { h: Number(m[1]), m: Number(m[2]) };
+    }
+
+    function renderHorario(horario, readyTotal) {
+        if (!horario) return `<div class="card-horario none">💤 Sin hoy</div>`;
+        const principal = extraerHorarioPrincipal(horario.action);
+        const tope = extraerHoraTope(horario.action);
+        const now = new Date();
+        let urgent = false, passed = false;
+        if (tope) {
+            const horaLimite = new Date();
+            horaLimite.setHours(tope.h, tope.m, 0, 0);
+            const diffMin = (horaLimite - now) / 60000;
+            urgent = readyTotal > 0 && diffMin > 0 && diffMin < 120;
+            passed = diffMin < 0;
+        }
+        const icon = passed ? '✅' : (urgent ? '⚠️' : '🚚');
+        const cls = urgent ? 'urgent' : (passed ? 'passed' : '');
+        return `<div class="card-horario ${cls}" title="Cutoff: ${horario.cutoff}">${icon} <b>${principal}</b></div>`;
+    }
+
+    function formatAvg(paq, uni) {
+        if (!paq) return null;
+        return (uni / paq).toFixed(1);
+    }
+
+    // ── Secciones Flex/Colecta ──────────────────────
+    function renderTipoGrid(datos, esImpresos = false) {
+        const gridClass = esImpresos ? 'tipo-grid impresos-grid' : 'tipo-grid';
         return `
-            <div class="card-cutoff ${urgent ? 'urgent' : ''}">
-                ${iconPrefix} hasta las <b>${horario.cutoff}</b>
+            <div class="${gridClass}">
+                <div class="tipo-box flex">
+                    <div class="tipo-lbl">🏍️ Flex</div>
+                    <div class="tipo-num ${datos.flex === 0 ? 'zero' : ''}">${datos.flex}</div>
+                    <div class="tipo-uni ${datos.flexUni === 0 ? 'zero' : ''}">${datos.flexUni} u</div>
+                </div>
+                <div class="tipo-box colecta">
+                    <div class="tipo-lbl">📦 Colecta</div>
+                    <div class="tipo-num ${datos.colecta === 0 ? 'zero' : ''}">${datos.colecta}</div>
+                    <div class="tipo-uni ${datos.colectaUni === 0 ? 'zero' : ''}">${datos.colectaUni} u</div>
+                </div>
             </div>`;
     }
 
@@ -741,44 +788,60 @@
         const totPrintU = sum('printed', 'totalUni');
         const totBuffered = resultados.reduce((a, r) => a + (r.buffered || 0), 0);
 
-        // Hero
+        // ── HERO ──
         const heroEl = document.getElementById('hero');
         heroEl.style.display = 'block';
         document.getElementById('heroNumber').textContent = totReady;
         document.getElementById('heroSub').textContent =
             totReady === 1 ? 'paquete para imprimir' : 'paquetes para imprimir';
         document.getElementById('heroUnits').textContent =
-            totReady > 0 ? `${totReadyU} unidad${totReadyU !== 1 ? 'es' : ''} a preparar` : '';
+            totReady > 0 ? `${totReadyU} unidad${totReadyU !== 1 ? 'es' : ''} total` : '';
+        const avgEl = document.getElementById('heroAvg');
+        const avg = formatAvg(totReady, totReadyU);
+        if (avg) {
+            document.getElementById('heroAvgNum').textContent = avg;
+            avgEl.style.display = 'block';
+        } else {
+            avgEl.style.display = 'none';
+        }
         document.getElementById('heroCachedBadge').style.display = fromCache ? 'inline-block' : 'none';
 
-        // Cards por cuenta
+        // ── CARDS POR CUENTA ──
         let html = '';
         resultados.forEach((r, i) => {
             const c = r.cuenta;
             const hasPrints = (r.ready?.total || 0) > 0;
             const horario = getHorarioHoy(c.nombre);
             const allClear = !r.error && (r.ready?.total || 0) === 0 && (r.printed?.total || 0) === 0 && !r.buffered;
+            const hasImpresos = (r.printed?.total || 0) > 0;
 
             html += `
             <div class="cuenta-card ${c.css} animate-in ${hasPrints ? 'has-prints' : ''}"
-                 style="animation-delay:${i * 0.12}s">
-                <div class="card-top">
+                 style="animation-delay:${i * 0.08}s"
+                 onclick="toggleCard(this)">
+                <div class="card-header-row">
                     <div class="card-name">${c.nombre}</div>
-                    ${renderCutoff(horario, r.ready?.total || 0)}
+                    ${renderHorario(horario, r.ready?.total || 0)}
                 </div>
-                ${horario ? `<div class="card-cutoff-sub">${horario.action}</div>` : '<div style="margin-bottom:8px"></div>'}
                 ${r.error
                     ? `<div class="error-badge">⚠️ Error al cargar</div>`
                     : allClear
-                        ? `<div class="all-clear">✅ Todo al día</div>
-                           <div class="all-clear-sub">sin paquetes pendientes</div>`
-                        : renderCuentaTable(r.ready, r.printed)
+                        ? `<div class="all-clear-compact">✅ Todo al día</div>`
+                        : `
+                            <div class="section-label imprimir">🖨️ Para imprimir</div>
+                            ${renderTipoGrid(r.ready, false)}
+                            <div class="card-impresos">
+                                <div class="section-label impresos">📬 Ya impresos</div>
+                                ${renderTipoGrid(r.printed, true)}
+                            </div>
+                            ${hasImpresos ? `<div class="expand-hint">toque para ver ${r.printed.total} ya impresos</div>` : ''}
+                        `
                 }
-                ${r.buffered > 0 ? `<div class="buffered-row">⏳ ${r.buffered} en buffered · ${r.bufferedUni || 0} u</div>` : ''}
+                ${r.buffered > 0 ? `<div class="buffered-row">⏳ ${r.buffered} buffered · ${r.bufferedUni || 0}u</div>` : ''}
             </div>`;
         });
 
-        // Total card
+        // ── TOTAL ──
         const totalReady   = {
             flex: sum('ready', 'flex'), flexUni: sum('ready', 'flexUni'),
             colecta: sum('ready', 'colecta'), colectaUni: sum('ready', 'colectaUni'),
@@ -790,25 +853,43 @@
             total: totPrint, totalUni: totPrintU
         };
         const totalAllClear = totReady === 0 && totPrint === 0 && !totBuffered;
+        const avgTot = formatAvg(totReady, totReadyU);
 
         html += `
-        <div class="cuenta-card total animate-in" style="animation-delay:${resultados.length * 0.12}s">
-            <div class="card-top">
+        <div class="cuenta-card total animate-in" style="animation-delay:${resultados.length * 0.08}s">
+            <div class="card-header-row">
                 <div class="card-name">Total</div>
-                <div class="card-cutoff" style="font-size:11px">
-                    <span style="color:var(--muted-2)">${totReady + totPrint} paq · ${totReadyU + totPrintU} u</span>
+                <div class="card-horario" style="font-size:11px">
+                    ${avgTot ? `<span style="color:var(--muted-2)">⌀ ${avgTot} u/paq</span>` : `<span style="color:var(--muted)">—</span>`}
                 </div>
             </div>
-            <div style="margin-bottom:8px"></div>
             ${totalAllClear
-                ? `<div class="all-clear">✅ Todo al día</div>`
-                : renderCuentaTable(totalReady, totalPrinted)
+                ? `<div class="all-clear-compact">✅ Todo al día</div>`
+                : `
+                    <div class="section-label imprimir">🖨️ Para imprimir</div>
+                    ${renderTipoGrid(totalReady, false)}
+                    ${totPrint > 0 ? `
+                        <div style="margin-top:12px;padding-top:12px;border-top:1px solid var(--border)">
+                            <div class="section-label impresos">📬 Ya impresos</div>
+                            ${renderTipoGrid(totalPrinted, true)}
+                        </div>
+                    ` : ''}
+                `
             }
-            ${totBuffered > 0 ? `<div class="buffered-row">⏳ ${totBuffered} en buffered</div>` : ''}
+            ${totBuffered > 0 ? `<div class="buffered-row">⏳ ${totBuffered} buffered</div>` : ''}
         </div>`;
 
         document.getElementById('content').innerHTML = html;
     }
+
+    // ══════════════════════════════════════════════
+    //  TOGGLE EXPAND
+    // ══════════════════════════════════════════════
+    window.toggleCard = function(card) {
+        if (card.classList.contains('total')) return;
+        if (card.querySelector('.all-clear-compact')) return;
+        card.classList.toggle('expanded');
+    };
 
     // ══════════════════════════════════════════════
     //  UI UTILS
