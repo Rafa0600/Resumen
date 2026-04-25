@@ -173,6 +173,7 @@
             border-color: rgba(255,230,0,0.18);
             cursor: default;
         }
+        .cuenta-card.total.total-expandible { cursor: pointer; }
         .cuenta-card.total::before { background: linear-gradient(90deg, #b8a000, var(--yellow)); }
 
         .card-header-row {
@@ -383,6 +384,58 @@
         .dot-status.cached { background: var(--yellow); box-shadow: 0 0 6px var(--yellow); }
         .dot-status.error { background: var(--red); }
 
+        /* ── Total ventas mini al lado del nombre ── */
+        .ventas-mini {
+            font-family: 'Space Mono', monospace;
+            font-size: 10px;
+            color: var(--muted);
+            opacity: 0.7;
+            margin-left: 6px;
+        }
+        .ventas-mini b { color: var(--muted-2); font-weight: 700; }
+
+        /* ── Sección "Por escanear" ── */
+        .escanear-block {
+            margin-top: 10px;
+            padding: 9px 10px;
+            background: rgba(64,196,255,0.06);
+            border: 1px solid rgba(64,196,255,0.18);
+            border-radius: 9px;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+        }
+        .escanear-block.zero {
+            background: transparent;
+            border-color: var(--border);
+            opacity: 0.5;
+        }
+        .escanear-lbl {
+            font-size: 10px;
+            color: #80d8ff;
+            text-transform: uppercase;
+            letter-spacing: 0.8px;
+            font-weight: 700;
+        }
+        .escanear-block.zero .escanear-lbl { color: var(--muted); }
+        .escanear-vals {
+            display: flex;
+            align-items: baseline;
+            gap: 10px;
+            font-family: 'Space Mono', monospace;
+        }
+        .escanear-vals .ev-num {
+            font-size: 18px;
+            font-weight: 700;
+            color: var(--blue);
+        }
+        .escanear-block.zero .escanear-vals .ev-num { color: #3a3a55; font-weight: 400; }
+        .escanear-vals .ev-tipo {
+            font-size: 10px;
+            color: var(--muted);
+        }
+        .escanear-block.zero .ev-tipo { color: #3a3a55; }
+
         /* ── HORARIO STALE WARNING ── */
         .stale-warning {
             margin: 8px 16px 0;
@@ -557,11 +610,47 @@
             return items;
         }
 
-        const [readyItems, printedItems, pickupItems, bufferedItems] = await Promise.all([
+        // Fetch órdenes "shipped" recientes (últimos 7 días) → para detectar pendientes de escaneo
+        // Pendiente = shipping.status='shipped' pero shipments status_history.date_shipped vacío.
+        // Se busca solo por rango de date_created para que ML filtre server-side y traiga poco.
+        async function fetchShippedRecientes() {
+            const items = [];
+            const desde = new Date(); desde.setDate(desde.getDate() - 7);
+            const desdeISO = encodeURIComponent(desde.toISOString().split('.')[0] + '.000-00:00');
+            const hasta = new Date(); hasta.setDate(hasta.getDate() + 1);
+            const hastaISO = encodeURIComponent(hasta.toISOString().split('.')[0] + '.000-00:00');
+            const filter = `&order.date_created.from=${desdeISO}&order.date_created.to=${hastaISO}&order.status=paid&shipping.status=shipped`;
+            let offset = 0;
+            while (true) {
+                let data;
+                const url = `${cuenta.proxy}/api/orders/search?seller=${user_id}&offset=${offset}&limit=50&sort=date_desc${filter}`;
+                try { data = await jsonConRetry(url, makeAuthOpts()); }
+                catch (e) {
+                    invalidarToken(cuenta.proxy);
+                    ({ access_token, user_id } = await getToken(cuenta));
+                    data = await jsonConRetry(url, makeAuthOpts());
+                }
+                const orders = data.results || [];
+                if (orders.length === 0) break;
+                for (const o of orders) {
+                    const sid = o.shipping?.id;
+                    if (!sid) continue;
+                    const qty = (o.order_items || []).reduce((a, it) => a + (it.quantity || 0), 0);
+                    items.push({ sid, qty });
+                }
+                if (orders.length < 50) break;
+                offset += 50;
+                if (offset >= 500) break;
+            }
+            return items;
+        }
+
+        const [readyItems, printedItems, pickupItems, bufferedItems, shippedRecientes] = await Promise.all([
             fetchSubstatus('ready_to_print'),
             fetchSubstatus('printed'),
             fetchSubstatus('ready_for_pickup'),
-            fetchSubstatus('buffered')
+            fetchSubstatus('buffered'),
+            fetchShippedRecientes()
         ]);
 
         const PRIORIDAD = { ready_to_print: 4, printed: 3, ready_for_pickup: 2, buffered: 1 };
@@ -578,48 +667,72 @@
             }
         }
 
-        const shipEntries = [...allShipMap.entries()];
+        // Set de shipments shipped recientes para chequear pendientes de escaneo
+        const shippedShipMap = new Map();
+        for (const it of shippedRecientes) {
+            shippedShipMap.set(it.sid, it.qty);
+        }
+
+        // Combinar todos los sids únicos para fetchear shipments (dedupe)
+        const allSidsSet = new Set([...allShipMap.keys(), ...shippedShipMap.keys()]);
+        const shipEntries = [...allSidsSet];
         const ships = new Map();
         const BATCH = 30;
         for (let i = 0; i < shipEntries.length; i += BATCH) {
             setProgress(`${cuenta.nombre}: shipments ${i}/${shipEntries.length}`);
             const batch = shipEntries.slice(i, i + BATCH);
             const results = await Promise.allSettled(
-                batch.map(([sid]) => jsonConRetry(`${cuenta.proxy}/api/shipments/${sid}`, makeAuthOpts()))
+                batch.map(sid => jsonConRetry(`${cuenta.proxy}/api/shipments/${sid}`, makeAuthOpts()))
             );
             for (const r of results) {
                 if (r.status === 'fulfilled' && r.value?.id) ships.set(r.value.id, r.value);
             }
         }
 
-        const ready   = { flex: 0, flexUni: 0, colecta: 0, colectaUni: 0 };
-        const printed = { flex: 0, flexUni: 0, colecta: 0, colectaUni: 0 };
+        const ready    = { flex: 0, flexUni: 0, colecta: 0, colectaUni: 0 };
+        const printed  = { flex: 0, flexUni: 0, colecta: 0, colectaUni: 0 };
+        const pendEsc  = { flex: 0, flexUni: 0, colecta: 0, colectaUni: 0 };
         let buffered = 0, bufferedUni = 0;
 
         ships.forEach(s => {
-            const meta = allShipMap.get(s.id);
-            if (!meta) return;
             const isFlex = s.logistic_type === 'self_service';
-            const q = meta.qty;
 
-            if (meta.substatus === 'ready_to_print') {
-                if (isFlex) { ready.flex++; ready.flexUni += q; }
-                else        { ready.colecta++; ready.colectaUni += q; }
-            } else if (meta.substatus === 'printed' || meta.substatus === 'ready_for_pickup') {
-                if (isFlex) { printed.flex++; printed.flexUni += q; }
-                else        { printed.colecta++; printed.colectaUni += q; }
-            } else if (meta.substatus === 'buffered') {
-                buffered++;
-                bufferedUni += q;
+            // Categorías: ready_to_print / printed / ready_for_pickup / buffered
+            const meta = allShipMap.get(s.id);
+            if (meta) {
+                const q = meta.qty;
+                if (meta.substatus === 'ready_to_print') {
+                    if (isFlex) { ready.flex++; ready.flexUni += q; }
+                    else        { ready.colecta++; ready.colectaUni += q; }
+                } else if (meta.substatus === 'printed' || meta.substatus === 'ready_for_pickup') {
+                    if (isFlex) { printed.flex++; printed.flexUni += q; }
+                    else        { printed.colecta++; printed.colectaUni += q; }
+                } else if (meta.substatus === 'buffered') {
+                    buffered++;
+                    bufferedUni += q;
+                }
+            }
+
+            // Pendientes de escaneo: shipped pero status_history.date_shipped vacío
+            if (shippedShipMap.has(s.id)) {
+                const sentDate = s.status_history?.date_shipped;
+                const delivered = s.status_history?.date_delivered;
+                if (!sentDate && !delivered && s.status === 'shipped') {
+                    const q = shippedShipMap.get(s.id) || 1;
+                    if (isFlex) { pendEsc.flex++; pendEsc.flexUni += q; }
+                    else        { pendEsc.colecta++; pendEsc.colectaUni += q; }
+                }
             }
         });
 
-        ready.total    = ready.flex + ready.colecta;
-        ready.totalUni = ready.flexUni + ready.colectaUni;
+        ready.total      = ready.flex + ready.colecta;
+        ready.totalUni   = ready.flexUni + ready.colectaUni;
         printed.total    = printed.flex + printed.colecta;
         printed.totalUni = printed.flexUni + printed.colectaUni;
+        pendEsc.total    = pendEsc.flex + pendEsc.colecta;
+        pendEsc.totalUni = pendEsc.flexUni + pendEsc.colectaUni;
 
-        return { cuenta, ready, printed, buffered, bufferedUni };
+        return { cuenta, ready, printed, pendEsc, buffered, bufferedUni };
     }
 
     // ══════════════════════════════════════════════
@@ -697,7 +810,7 @@
         const resultados = settled.map((r, i) => {
             if (r.status === 'fulfilled') return r.value;
             console.error(`Error ${CUENTAS[i].nombre}:`, r.reason);
-            return { cuenta: CUENTAS[i], ready: empty(), printed: empty(), buffered: 0, bufferedUni: 0, error: true };
+            return { cuenta: CUENTAS[i], ready: empty(), printed: empty(), pendEsc: empty(), buffered: 0, bufferedUni: 0, error: true };
         });
         const hayError = resultados.some(r => r.error);
 
@@ -779,6 +892,21 @@
             </div>`;
     }
 
+    function renderEscanear(pendEsc, colectaLabel) {
+        const total = pendEsc.total || 0;
+        const isZero = total === 0;
+        return `
+            <div class="escanear-block ${isZero ? 'zero' : ''}">
+                <div>
+                    <div class="escanear-lbl">📡 Por escanear</div>
+                </div>
+                <div class="escanear-vals">
+                    <span><span class="ev-num">${pendEsc.flex}</span> <span class="ev-tipo">flex</span></span>
+                    <span><span class="ev-num">${pendEsc.colecta}</span> <span class="ev-tipo">${colectaLabel.toLowerCase()}</span></span>
+                </div>
+            </div>`;
+    }
+
     function renderResultados(resultados, fromCache = false) {
         const sum = (key, sub) => resultados.reduce((a, r) => a + (r[key]?.[sub] || 0), 0);
 
@@ -786,6 +914,9 @@
         const totReadyU = sum('ready', 'totalUni');
         const totPrint  = sum('printed', 'total');
         const totPrintU = sum('printed', 'totalUni');
+        const totEsc    = sum('pendEsc', 'total');
+        const totEscFlex = sum('pendEsc', 'flex');
+        const totEscCol  = sum('pendEsc', 'colecta');
         const totBuffered = resultados.reduce((a, r) => a + (r.buffered || 0), 0);
 
         // ── HERO ──
@@ -814,13 +945,18 @@
             const horario = getHorarioHoy(c.nombre);
             const allClear = !r.error && (r.ready?.total || 0) === 0 && (r.printed?.total || 0) === 0 && !r.buffered;
             const hasImpresos = (r.printed?.total || 0) > 0;
+            // Ventas mini = total de paquetes para imprimir (Flex + Colecta) de esta cuenta
+            const paraImprimirCuenta = (r.ready?.flex || 0) + (r.ready?.colecta || 0);
+            const ventasMini = paraImprimirCuenta > 0
+                ? `<span class="ventas-mini">· <b>${paraImprimirCuenta}</b> p/imp</span>`
+                : '';
 
             html += `
             <div class="cuenta-card ${c.css} animate-in ${hasPrints ? 'has-prints' : ''}"
                  style="animation-delay:${i * 0.08}s"
                  onclick="toggleCard(this)">
                 <div class="card-header-row">
-                    <div class="card-name">${c.nombre}</div>
+                    <div class="card-name">${c.nombre}${ventasMini}</div>
                     ${renderHorario(horario, r.ready?.total || 0)}
                 </div>
                 ${r.error
@@ -852,13 +988,23 @@
             colecta: sum('printed', 'colecta'), colectaUni: sum('printed', 'colectaUni'),
             total: totPrint, totalUni: totPrintU
         };
-        const totalAllClear = totReady === 0 && totPrint === 0 && !totBuffered;
+        const totalPendEsc = {
+            flex: totEscFlex, colecta: totEscCol, total: totEsc
+        };
+        const totalAllClear = totReady === 0 && totPrint === 0 && totEsc === 0 && !totBuffered;
         const avgTot = formatAvg(totReady, totReadyU);
+        // Total de "para imprimir" sumando todas las cuentas (Flex + Colecta de cada una)
+        const totalVentasParaImprimirGlobal = totReady;
+
+        const hasImpresosTotal = totPrint > 0;
+        const hasEscanearTotal = totEsc > 0;
+        const totalExpandible = hasImpresosTotal || hasEscanearTotal;
 
         html += `
-        <div class="cuenta-card total animate-in" style="animation-delay:${resultados.length * 0.08}s">
+        <div class="cuenta-card total animate-in${totalExpandible ? ' total-expandible' : ''}" style="animation-delay:${resultados.length * 0.08}s"
+             ${totalExpandible ? 'onclick="toggleCard(this)"' : ''}>
             <div class="card-header-row">
-                <div class="card-name">Total</div>
+                <div class="card-name">Total${totalVentasParaImprimirGlobal ? `<span class="ventas-mini">· <b>${totalVentasParaImprimirGlobal}</b> p/imp</span>` : ''}</div>
                 <div class="card-horario" style="font-size:11px">
                     ${avgTot ? `<span style="color:var(--muted-2)">⌀ ${avgTot} u/paq</span>` : `<span style="color:var(--muted)">—</span>`}
                 </div>
@@ -868,12 +1014,14 @@
                 : `
                     <div class="section-label imprimir">🖨️ Para imprimir</div>
                     ${renderTipoGrid(totalReady, false)}
-                    ${totPrint > 0 ? `
-                        <div style="margin-top:12px;padding-top:12px;border-top:1px solid var(--border)">
+                    <div class="card-impresos">
+                        ${hasImpresosTotal ? `
                             <div class="section-label impresos">📬 Ya impresos</div>
                             ${renderTipoGrid(totalPrinted, true)}
-                        </div>
-                    ` : ''}
+                        ` : ''}
+                        ${renderEscanear(totalPendEsc, 'colecta')}
+                    </div>
+                    ${totalExpandible ? `<div class="expand-hint">toque para ver ${hasImpresosTotal ? totPrint + ' impresos' : ''}${hasImpresosTotal && hasEscanearTotal ? ' · ' : ''}${hasEscanearTotal ? totEsc + ' por escanear' : ''}</div>` : ''}
                 `
             }
             ${totBuffered > 0 ? `<div class="buffered-row">⏳ ${totBuffered} buffered</div>` : ''}
@@ -886,7 +1034,8 @@
     //  TOGGLE EXPAND
     // ══════════════════════════════════════════════
     window.toggleCard = function(card) {
-        if (card.classList.contains('total')) return;
+        // Total solo expande si tiene la clase total-expandible
+        if (card.classList.contains('total') && !card.classList.contains('total-expandible')) return;
         if (card.querySelector('.all-clear-compact')) return;
         card.classList.toggle('expanded');
     };
