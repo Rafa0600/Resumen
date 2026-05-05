@@ -78,7 +78,7 @@
         }
         .hero-number-row {
             display: flex;
-            align-items: baseline;
+            align-items: center;
             justify-content: center;
             gap: 14px;
         }
@@ -104,7 +104,100 @@
             text-transform: uppercase;
             letter-spacing: 1px;
         }
+        /* ── Tasas mini (siempre visibles al lado del número) ── */
+        .hero-rates-mini {
+            display: flex;
+            flex-direction: column;
+            align-items: flex-start;
+            align-self: center;
+            gap: 3px;
+            padding: 7px 10px;
+            background: rgba(255,255,255,0.03);
+            border: 1px solid var(--border-bright);
+            border-radius: 10px;
+            min-width: 68px;
+        }
+        .hrm-total-row {
+            display: flex;
+            align-items: baseline;
+            gap: 2px;
+            line-height: 1;
+        }
+        .hrm-total-val {
+            font-family: 'Space Mono', monospace;
+            font-size: 24px;
+            font-weight: 700;
+            color: var(--text);
+        }
+        .hrm-total-unit {
+            font-family: 'Space Mono', monospace;
+            font-size: 9px;
+            color: var(--muted);
+        }
+        .hrm-breakdown {
+            display: flex;
+            align-items: center;
+            gap: 5px;
+            font-family: 'Space Mono', monospace;
+            font-size: 10px;
+        }
+        .hrm-flex  { color: var(--green); }
+        .hrm-col   { color: var(--blue); }
+        .hrm-bsep  { color: var(--border-bright); font-size: 9px; }
+
         .hero-sub { font-size: 12px; color: var(--muted); margin-top: 3px; }
+
+        /* ── Tiempo de preparación (siempre visible) ── */
+        .hero-tiempo {
+            margin-top: 5px;
+            display: inline-flex;
+            align-items: center;
+            gap: 5px;
+            font-family: 'Space Mono', monospace;
+            font-size: 11px;
+            color: var(--muted);
+        }
+        .hero-tiempo .ht-val {
+            font-size: 13px;
+            font-weight: 700;
+            color: var(--orange);
+        }
+
+        /* ── Tiempo en el panel de proyección ── */
+        .proy-tiempo-row {
+            margin-top: 9px;
+            padding: 9px 12px;
+            background: rgba(255,170,68,0.05);
+            border: 1px solid rgba(255,170,68,0.18);
+            border-radius: 8px;
+            display: grid;
+            grid-template-columns: 1fr 1px 1fr;
+            align-items: center;
+            gap: 0 10px;
+        }
+        .pt-divider { background: var(--border); width: 1px; min-height: 38px; }
+        .pt-col { text-align: center; }
+        .pt-label {
+            font-size: 9px;
+            color: var(--muted);
+            text-transform: uppercase;
+            letter-spacing: 0.8px;
+            font-family: 'Space Mono', monospace;
+        }
+        .pt-val {
+            font-family: 'Space Mono', monospace;
+            font-size: 17px;
+            font-weight: 700;
+            color: var(--orange);
+            margin-top: 2px;
+            line-height: 1;
+        }
+        .pt-sub {
+            font-size: 9px;
+            color: var(--muted);
+            font-family: 'Space Mono', monospace;
+            margin-top: 2px;
+        }
         .hero-units {
             font-family: 'Space Mono', monospace;
             font-size: 11px;
@@ -123,27 +216,199 @@
             padding: 3px 10px;
         }
 
-        /* ── REFRESH BTN ── */
-        .refresh-wrap { padding: 0 16px 10px; }
-        .reload-btn {
-            width: 100%;
-            background: transparent;
-            border: 1px solid var(--border-bright);
-            color: var(--muted);
-            padding: 8px;
-            border-radius: 10px;
-            font-family: 'Space Grotesk', sans-serif;
-            font-size: 13px;
-            font-weight: 500;
+        /* ── BARRA DE ACCIONES (proyección + actualizar) ── */
+        .action-row {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 0 14px 10px;
+            gap: 8px;
+        }
+        .proy-toggle {
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
             cursor: pointer;
+            font-family: 'Space Mono', monospace;
+            font-size: 10px;
+            color: var(--muted-2);
+            padding: 5px 12px;
+            border: 1px solid var(--border-bright);
+            border-radius: 20px;
+            background: transparent;
             transition: all 0.2s;
+            user-select: none;
+            -webkit-user-select: none;
+        }
+        .proy-toggle:hover, .proy-toggle:active { border-color: var(--yellow); color: var(--yellow); }
+        .proy-chevron { font-size: 8px; transition: transform 0.25s; }
+        .proy-toggle.open .proy-chevron { transform: rotate(180deg); }
+
+        .reload-btn {
+            width: 34px;
+            height: 34px;
+            border-radius: 50%;
+            border: 1px solid var(--border-bright);
+            background: transparent;
+            color: var(--muted);
+            cursor: pointer;
             display: flex;
             align-items: center;
             justify-content: center;
-            gap: 8px;
+            font-size: 17px;
+            line-height: 1;
+            transition: all 0.2s;
+            flex-shrink: 0;
+            padding: 0;
         }
         .reload-btn:hover, .reload-btn:active { border-color: var(--yellow); color: var(--yellow); }
         .reload-btn:disabled { opacity: 0.35; cursor: wait; }
+
+        /* ── Total al corte (siempre visible) ── */
+        .proy-quick {
+            flex: 1;
+            display: flex;
+            align-items: baseline;
+            justify-content: center;
+            gap: 2px;
+            font-family: 'Space Mono', monospace;
+        }
+        .pq-aprox {
+            font-size: 13px;
+            color: rgba(255,230,0,0.55);
+            line-height: 1;
+        }
+        .pq-val {
+            font-size: 26px;
+            font-weight: 700;
+            color: var(--yellow);
+            line-height: 1;
+            text-shadow: 0 0 18px rgba(255,230,0,0.22);
+        }
+        .pq-lbl {
+            font-size: 9px;
+            color: var(--muted);
+            align-self: flex-end;
+            padding-bottom: 3px;
+            white-space: nowrap;
+        }
+
+        /* ── PROYECCIÓN PANEL ── */
+        .proy-panel {
+            margin: 0 14px 10px;
+            background: rgba(255,230,0,0.03);
+            border: 1px solid rgba(255,230,0,0.12);
+            border-radius: 12px;
+            padding: 10px 14px 10px;
+        }
+        .proy-grid {
+            display: grid;
+            grid-template-columns: 1fr 1px 1fr;
+            gap: 0 10px;
+            align-items: start;
+        }
+        .proy-div {
+            background: var(--border);
+            width: 1px;
+            height: 100%;
+            min-height: 60px;
+        }
+        .proy-col { padding: 0 2px; }
+        .proy-tipo-header {
+            font-size: 10px;
+            font-weight: 700;
+            color: var(--muted-2);
+            text-transform: uppercase;
+            letter-spacing: 0.8px;
+            margin-bottom: 5px;
+            display: flex;
+            align-items: baseline;
+            gap: 4px;
+            flex-wrap: wrap;
+        }
+        .proy-cutoff {
+            font-weight: 400;
+            font-size: 9px;
+            color: var(--muted);
+            text-transform: none;
+            letter-spacing: 0;
+        }
+        .proy-rate {
+            font-family: 'Space Mono', monospace;
+            font-size: 22px;
+            font-weight: 700;
+            color: var(--text);
+            line-height: 1;
+        }
+        .proy-rate-unit {
+            font-family: 'Space Mono', monospace;
+            font-size: 10px;
+            color: var(--muted);
+            margin-top: 1px;
+        }
+        .proy-interval {
+            font-family: 'Space Mono', monospace;
+            font-size: 10px;
+            color: var(--muted);
+            margin-top: 3px;
+        }
+        .proy-proj-total {
+            margin-top: 7px;
+            font-family: 'Space Mono', monospace;
+            font-size: 13px;
+            font-weight: 700;
+            color: var(--yellow);
+        }
+        .proy-proj-total.passed { color: var(--muted); font-size: 11px; }
+        .proy-proj-total.no-data { color: var(--muted-2); }
+        .proy-proj-label {
+            font-size: 9px;
+            color: var(--muted);
+            font-family: 'Space Mono', monospace;
+            margin-top: 1px;
+        }
+        .proy-total-row {
+            margin-top: 9px;
+            padding: 8px 10px;
+            background: rgba(255,230,0,0.05);
+            border: 1px solid rgba(255,230,0,0.2);
+            border-radius: 8px;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 8px;
+        }
+        .ptr-label {
+            font-size: 10px;
+            font-weight: 700;
+            color: var(--muted-2);
+            text-transform: uppercase;
+            letter-spacing: 0.8px;
+        }
+        .ptr-val {
+            font-family: 'Space Mono', monospace;
+            font-size: 20px;
+            font-weight: 700;
+            color: var(--yellow);
+        }
+        .ptr-sub {
+            font-family: 'Space Mono', monospace;
+            font-size: 9px;
+            color: var(--muted);
+            margin-top: 1px;
+            text-align: right;
+        }
+
+        .proy-note {
+            margin-top: 8px;
+            padding-top: 7px;
+            border-top: 1px solid var(--border);
+            font-size: 9px;
+            color: var(--muted);
+            font-family: 'Space Mono', monospace;
+            text-align: center;
+        }
+
 
         /* ── CARDS ── */
         .content { padding: 0 12px; }
@@ -464,18 +729,92 @@
                 <span id="heroAvgNum">—</span>
                 <small>u/paq</small>
             </div>
+            <div class="hero-rates-mini" id="heroRatesMini" style="display:none">
+                <div class="hrm-total-row">
+                    <span class="hrm-total-val" id="heroTotalRate">—</span>
+                    <span class="hrm-total-unit">/h</span>
+                </div>
+                <div class="hrm-breakdown">
+                    <span class="hrm-flex">🏍️<span id="heroFlexRate">—</span></span>
+                    <span class="hrm-bsep">·</span>
+                    <span class="hrm-col">📦<span id="heroColectaRate">—</span></span>
+                </div>
+            </div>
         </div>
         <div class="hero-sub" id="heroSub">paquetes</div>
         <div class="hero-units" id="heroUnits"></div>
+        <div class="hero-tiempo" id="heroTiempo" style="display:none">
+            ⏱ <span class="ht-val" id="heroTiempoVal">—</span> de trabajo ahora
+        </div>
         <div id="heroCachedBadge" style="display:none" class="hero-cached-badge">⚡ datos en caché</div>
     </div>
 
     <div id="staleWarning" class="stale-warning">⚠️ Horarios desactualizados · recargá ventas</div>
 
-    <div class="refresh-wrap">
-        <button class="reload-btn" id="reloadBtn" onclick="cargarTodo(false)">
-            <span id="reloadIcon">⟳</span> Actualizar
+    <!-- Barra de acciones compacta -->
+    <div class="action-row">
+        <button class="proy-toggle" id="proyToggle" onclick="toggleProy()" style="display:none">
+            <span>📊 proyección</span>
+            <span class="proy-chevron">▼</span>
         </button>
+        <div class="proy-quick" id="proyQuick" style="display:none">
+            <span class="pq-aprox">≈</span>
+            <span class="pq-val" id="proyQuickVal">—</span>
+            <span class="pq-lbl">al corte</span>
+        </div>
+        <button class="reload-btn" id="reloadBtn" onclick="cargarTodo(false)">
+            <span id="reloadIcon">⟳</span>
+        </button>
+    </div>
+
+    <!-- Proyección panel (se expande bajo la barra) -->
+    <div class="proy-panel" id="proyPanel" style="display:none">
+        <div class="proy-grid">
+            <div class="proy-col">
+                <div class="proy-tipo-header">
+                    🏍️ Flex
+                    <span class="proy-cutoff">· hasta 14:00</span>
+                </div>
+                <div class="proy-rate" id="flexRate">—</div>
+                <div class="proy-rate-unit">ped/hora</div>
+                <div class="proy-interval" id="flexInterval">—</div>
+                <div class="proy-proj-total" id="flexProjTotal">—</div>
+                <div class="proy-proj-label" id="flexProjLabel"></div>
+            </div>
+            <div class="proy-div"></div>
+            <div class="proy-col">
+                <div class="proy-tipo-header">
+                    📦 Colecta
+                    <span class="proy-cutoff" id="colectaCutoffLabel">· hasta 15:00</span>
+                </div>
+                <div class="proy-rate" id="colectaRate">—</div>
+                <div class="proy-rate-unit">ped/hora</div>
+                <div class="proy-interval" id="colectaInterval">—</div>
+                <div class="proy-proj-total" id="colectaProjTotal">—</div>
+                <div class="proy-proj-label" id="colectaProjLabel"></div>
+            </div>
+        </div>
+        <div class="proy-total-row" id="proyTotalRow" style="display:none">
+            <div class="ptr-label">Total al corte</div>
+            <div>
+                <div class="ptr-val" id="proyTotalVal">—</div>
+                <div class="ptr-sub" id="proyTotalSub"></div>
+            </div>
+        </div>
+        <div class="proy-tiempo-row" id="proyTiempoRow" style="display:none">
+            <div class="pt-col">
+                <div class="pt-label">⏱ Ahora</div>
+                <div class="pt-val" id="ptValAhora">—</div>
+                <div class="pt-sub" id="ptSubAhora"></div>
+            </div>
+            <div class="pt-divider"></div>
+            <div class="pt-col">
+                <div class="pt-label">⏱ Al corte</div>
+                <div class="pt-val" id="ptValCorte">—</div>
+                <div class="pt-sub" id="ptSubCorte"></div>
+            </div>
+        </div>
+        <div class="proy-note" id="proyNote"></div>
     </div>
 
     <div class="content" id="content">
@@ -512,14 +851,19 @@
 
     const AUTH_WORKER = 'https://ml-auth-codes.rafaelassir.workers.dev';
     let HORARIOS = { Mikra: {}, Chaya: {} };
-    let HORARIOS_META = { Mikra: null, Chaya: null };  // {fecha, updated}
+    let HORARIOS_META = { Mikra: null, Chaya: null };
 
     const TOKEN_TTL_MS   = 55 * 60 * 1000;
     const RESULTS_TTL_MS =  3 * 60 * 1000;
     const FETCH_TIMEOUT  = 12_000;
     const MAX_RETRIES    = 3;
     const RETRY_DELAY_MS = 600;
-    const STALE_DAYS     = 2;  // si el horario es más viejo que esto, warning
+    const STALE_DAYS     = 2;
+
+    // Flex corta a las 14:00 en ambas cuentas.
+    // Colecta: las ventas que entran en el envío deben llegar antes de las 15:00.
+    const FLEX_CORTE_H = 14, FLEX_CORTE_M = 0;
+    const COLECTA_CORTE_H = 15, COLECTA_CORTE_M = 0;
 
     const tokenCache = {};
     let   resultadosCache = null;
@@ -601,7 +945,8 @@
                     const sid = o.shipping?.id;
                     if (!sid) continue;
                     const qty = (o.order_items || []).reduce((a, it) => a + (it.quantity || 0), 0);
-                    items.push({ sid, substatus, qty });
+                    // Capturar fecha de la orden para cálculo de velocidad
+                    items.push({ sid, substatus, qty, date: o.date_created || null });
                 }
                 if (orders.length < 50) break;
                 offset += 50;
@@ -610,9 +955,6 @@
             return items;
         }
 
-        // Fetch órdenes "shipped" recientes (últimos 7 días) → para detectar pendientes de escaneo
-        // Pendiente = shipping.status='shipped' pero shipments status_history.date_shipped vacío.
-        // Se busca solo por rango de date_created para que ML filtre server-side y traiga poco.
         async function fetchShippedRecientes() {
             const items = [];
             const desde = new Date(); desde.setDate(desde.getDate() - 7);
@@ -636,7 +978,7 @@
                     const sid = o.shipping?.id;
                     if (!sid) continue;
                     const qty = (o.order_items || []).reduce((a, it) => a + (it.quantity || 0), 0);
-                    items.push({ sid, qty });
+                    items.push({ sid, qty, date: o.date_created || null });
                 }
                 if (orders.length < 50) break;
                 offset += 50;
@@ -658,22 +1000,22 @@
         for (const it of [...readyItems, ...printedItems, ...pickupItems, ...bufferedItems]) {
             const existing = allShipMap.get(it.sid);
             if (!existing) {
-                allShipMap.set(it.sid, { substatus: it.substatus, qty: it.qty });
+                allShipMap.set(it.sid, { substatus: it.substatus, qty: it.qty, date: it.date });
             } else {
                 existing.qty += it.qty;
                 if (PRIORIDAD[it.substatus] > PRIORIDAD[existing.substatus]) {
                     existing.substatus = it.substatus;
                 }
+                // Conservar la fecha más temprana para mejor estimación de velocidad
+                if (it.date && (!existing.date || it.date < existing.date)) existing.date = it.date;
             }
         }
 
-        // Set de shipments shipped recientes para chequear pendientes de escaneo
         const shippedShipMap = new Map();
         for (const it of shippedRecientes) {
-            shippedShipMap.set(it.sid, it.qty);
+            shippedShipMap.set(it.sid, { qty: it.qty, date: it.date });
         }
 
-        // Combinar todos los sids únicos para fetchear shipments (dedupe)
         const allSidsSet = new Set([...allShipMap.keys(), ...shippedShipMap.keys()]);
         const shipEntries = [...allSidsSet];
         const ships = new Map();
@@ -694,33 +1036,54 @@
         const pendEsc  = { flex: 0, flexUni: 0, colecta: 0, colectaUni: 0 };
         let buffered = 0, bufferedUni = 0;
 
+        // Últimas 24h (no desde medianoche, para que funcione bien a las 00:xx)
+        const todayTs = Date.now() - 24 * 60 * 60 * 1000;
+        const flexDatesAll = [], colectaDatesAll = [];
+
         ships.forEach(s => {
             const isFlex = s.logistic_type === 'self_service';
 
-            // Categorías: ready_to_print / printed / ready_for_pickup / buffered
             const meta = allShipMap.get(s.id);
             if (meta) {
                 const q = meta.qty;
+                const orderTs = meta.date ? new Date(meta.date).getTime() : 0;
+                const isToday = orderTs >= todayTs;
+
                 if (meta.substatus === 'ready_to_print') {
-                    if (isFlex) { ready.flex++; ready.flexUni += q; }
-                    else        { ready.colecta++; ready.colectaUni += q; }
+                    if (isFlex) {
+                        ready.flex++; ready.flexUni += q;
+                        if (isToday && meta.date) flexDatesAll.push(meta.date);
+                    } else {
+                        ready.colecta++; ready.colectaUni += q;
+                        if (isToday && meta.date) colectaDatesAll.push(meta.date);
+                    }
                 } else if (meta.substatus === 'printed' || meta.substatus === 'ready_for_pickup') {
-                    if (isFlex) { printed.flex++; printed.flexUni += q; }
-                    else        { printed.colecta++; printed.colectaUni += q; }
+                    if (isFlex) {
+                        printed.flex++; printed.flexUni += q;
+                        if (isToday && meta.date) flexDatesAll.push(meta.date);
+                    } else {
+                        printed.colecta++; printed.colectaUni += q;
+                        if (isToday && meta.date) colectaDatesAll.push(meta.date);
+                    }
                 } else if (meta.substatus === 'buffered') {
-                    buffered++;
-                    bufferedUni += q;
+                    buffered++; bufferedUni += q;
                 }
             }
 
-            // Pendientes de escaneo: shipped pero status_history.date_shipped vacío
             if (shippedShipMap.has(s.id)) {
+                const sm = shippedShipMap.get(s.id);
                 const sentDate = s.status_history?.date_shipped;
                 const delivered = s.status_history?.date_delivered;
                 if (!sentDate && !delivered && s.status === 'shipped') {
-                    const q = shippedShipMap.get(s.id) || 1;
+                    const q = sm.qty || 1;
                     if (isFlex) { pendEsc.flex++; pendEsc.flexUni += q; }
                     else        { pendEsc.colecta++; pendEsc.colectaUni += q; }
+                }
+                // Incluir órdenes ya despachadas de hoy para mejor muestra de velocidad
+                const orderTs = sm.date ? new Date(sm.date).getTime() : 0;
+                if (orderTs >= todayTs && sm.date) {
+                    if (isFlex) flexDatesAll.push(sm.date);
+                    else colectaDatesAll.push(sm.date);
                 }
             }
         });
@@ -732,7 +1095,7 @@
         pendEsc.total    = pendEsc.flex + pendEsc.colecta;
         pendEsc.totalUni = pendEsc.flexUni + pendEsc.colectaUni;
 
-        return { cuenta, ready, printed, pendEsc, buffered, bufferedUni };
+        return { cuenta, ready, printed, pendEsc, buffered, bufferedUni, flexDatesAll, colectaDatesAll };
     }
 
     // ══════════════════════════════════════════════
@@ -774,6 +1137,229 @@
     }
 
     // ══════════════════════════════════════════════
+    //  PROYECCIÓN — VELOCIDAD DE VENTAS
+    // ══════════════════════════════════════════════
+
+    // Calcula pedidos/hora e intervalo promedio a partir de un array de fechas ISO.
+    function calcVelocidad(dates) {
+        if (!dates || dates.length < 2) return null;
+        const sorted = dates.map(d => new Date(d).getTime()).sort((a, b) => a - b);
+        const spanMs = sorted[sorted.length - 1] - sorted[0];
+        const spanHours = spanMs / (1000 * 60 * 60);
+        if (spanHours < 0.016) return null; // span menor a 1 minuto, no es útil
+        const perHour = dates.length / spanHours;
+        const intervalMin = 60 / perHour;
+        return { perHour, intervalMin, count: dates.length, spanHours };
+    }
+
+    // Proyecta cuántos pedidos más llegarán entre ahora y el horario de corte.
+    // Si el corte de hoy ya pasó, proyecta al corte de mañana.
+    function proyectarHasta(currentPending, vel, corteH, corteM) {
+        const now = new Date();
+        const corte = new Date();
+        corte.setHours(corteH, corteM, 0, 0);
+        let esMañana = false;
+        if (corte <= now) {
+            corte.setDate(corte.getDate() + 1);
+            esMañana = true;
+        }
+        const remainHours = (corte - now) / (1000 * 60 * 60);
+        if (!vel) return { passed: false, total: null, more: null, remainHours, esMañana };
+        const more = Math.round(vel.perHour * remainHours);
+        return { passed: false, more, total: currentPending + more, remainHours, esMañana };
+    }
+
+    function fmtRate(perHour) {
+        if (perHour >= 10) return perHour.toFixed(0);
+        if (perHour >= 1)  return perHour.toFixed(1);
+        return (perHour * 60).toFixed(1); // menos de 1/h → mostrar por hora igual
+    }
+
+    // 50 paquetes = 35 minutos → 0.7 min/paq
+    const MIN_POR_PAQ = 35 / 50;
+
+    function calcTiempoPrep(paquetes) {
+        return Math.round(paquetes * MIN_POR_PAQ);
+    }
+
+    function fmtTiempo(minutos) {
+        if (minutos <= 0) return '—';
+        if (minutos < 60) return `${minutos}min`;
+        const h = Math.floor(minutos / 60);
+        const m = minutos % 60;
+        return m === 0 ? `${h}h` : `${h}h ${m}min`;
+    }
+
+    function fmtInterval(min) {
+        if (min < 1)   return `c/ ${Math.round(min * 60)} seg`;
+        if (min < 90)  return `c/ ${Math.round(min)} min`;
+        return `c/ ${(min / 60).toFixed(1)} h`;
+    }
+
+    // Retorna el horario de corte de ventas de colecta leyendo HORARIOS.
+    // El cutoff en HORARIOS es el horario de despacho; las ventas cierran 30 min antes.
+    // Si no hay datos cargados, usa el default 15:00.
+    function getColectaCorte() {
+        let minMin = COLECTA_CORTE_H * 60 + COLECTA_CORTE_M;
+        let found = false;
+        for (const c of CUENTAS) {
+            const h = getHorarioHoy(c.nombre);
+            if (!h || !h.cutoff) continue;
+            const m = h.cutoff.match(/(\d{1,2}):(\d{2})/);
+            if (!m) continue;
+            const dispMin = Number(m[1]) * 60 + Number(m[2]);
+            const salesMin = dispMin - 30; // ventas cierran 30 min antes del despacho
+            if (!found || salesMin < minMin) { minMin = salesMin; found = true; }
+        }
+        return { h: Math.floor(minMin / 60), m: minMin % 60 };
+    }
+
+    window.toggleProy = function() {
+        const toggle = document.getElementById('proyToggle');
+        const panel  = document.getElementById('proyPanel');
+        const isOpen = toggle.classList.contains('open');
+        toggle.classList.toggle('open', !isOpen);
+        panel.style.display = isOpen ? 'none' : 'block';
+    };
+
+    function renderProyeccion(resultados) {
+        const toggle = document.getElementById('proyToggle');
+        if (!toggle) return;
+
+        const allFlexDates    = resultados.flatMap(r => r.flexDatesAll    || []);
+        const allColectaDates = resultados.flatMap(r => r.colectaDatesAll || []);
+
+        const sum = (key, sub) => resultados.reduce((a, r) => a + (r[key]?.[sub] || 0), 0);
+        const flexPending    = sum('ready', 'flex')    + sum('printed', 'flex');
+        const colectaPending = sum('ready', 'colecta') + sum('printed', 'colecta');
+
+        const velFlex    = calcVelocidad(allFlexDates);
+        const velColecta = calcVelocidad(allColectaDates);
+
+        // Corte de colecta desde HORARIOS (ventas = despacho - 30 min)
+        const colCorte = getColectaCorte();
+        const projFlex    = proyectarHasta(flexPending,    velFlex,    FLEX_CORTE_H, FLEX_CORTE_M);
+        const projColecta = proyectarHasta(colectaPending, velColecta, colCorte.h,   colCorte.m);
+
+        // ── Mini bloque: total/h + desglose flex/colecta ──
+        const totalPerHour = (velFlex?.perHour || 0) + (velColecta?.perHour || 0);
+        const hasAnyVel    = velFlex || velColecta;
+
+        document.getElementById('heroTotalRate').textContent   = hasAnyVel ? fmtRate(totalPerHour) : '—';
+        document.getElementById('heroFlexRate').textContent    = velFlex    ? fmtRate(velFlex.perHour)    : '—';
+        document.getElementById('heroColectaRate').textContent = velColecta ? fmtRate(velColecta.perHour) : '—';
+        document.getElementById('heroRatesMini').style.display = 'flex';
+
+        // ── Panel: Flex ──
+        const flexRateEl = document.getElementById('flexRate');
+        const flexIntEl  = document.getElementById('flexInterval');
+        const flexProjEl = document.getElementById('flexProjTotal');
+        const flexLblEl  = document.getElementById('flexProjLabel');
+        const flexCorteStr = `${String(FLEX_CORTE_H).padStart(2,'0')}:${String(FLEX_CORTE_M).padStart(2,'0')}`;
+        const flexCorteLabel = projFlex.esMañana ? `mañana ${flexCorteStr}` : flexCorteStr;
+
+        document.querySelector('#proyPanel .proy-col:first-child .proy-cutoff').textContent = `· hasta ${flexCorteLabel}`;
+        if (velFlex) {
+            flexRateEl.textContent = fmtRate(velFlex.perHour);
+            flexIntEl.textContent  = fmtInterval(velFlex.intervalMin);
+        } else {
+            flexRateEl.textContent = allFlexDates.length === 0 ? '—' : '< 2';
+            flexIntEl.textContent  = 'pocos datos';
+        }
+        if (projFlex.total !== null) {
+            flexProjEl.textContent = `≈ ${projFlex.total}`;
+            flexProjEl.className   = 'proy-proj-total';
+            flexLblEl.textContent  = `+${projFlex.more} más`;
+        } else {
+            flexProjEl.textContent = `${flexPending} ahora`;
+            flexProjEl.className   = 'proy-proj-total no-data';
+            flexLblEl.textContent  = 'sin datos';
+        }
+
+        // ── Panel: Colecta ──
+        const colRateEl = document.getElementById('colectaRate');
+        const colIntEl  = document.getElementById('colectaInterval');
+        const colProjEl = document.getElementById('colectaProjTotal');
+        const colLblEl  = document.getElementById('colectaProjLabel');
+        const colCorteStr = `${String(colCorte.h).padStart(2,'0')}:${String(colCorte.m).padStart(2,'0')}`;
+        const colCorteLabel = projColecta.esMañana ? `mañana ${colCorteStr}` : colCorteStr;
+
+        document.getElementById('colectaCutoffLabel').textContent = `· hasta ${colCorteLabel}`;
+        if (velColecta) {
+            colRateEl.textContent = fmtRate(velColecta.perHour);
+            colIntEl.textContent  = fmtInterval(velColecta.intervalMin);
+        } else {
+            colRateEl.textContent = allColectaDates.length === 0 ? '—' : '< 2';
+            colIntEl.textContent  = 'pocos datos';
+        }
+        if (projColecta.total !== null) {
+            colProjEl.textContent = `≈ ${projColecta.total}`;
+            colProjEl.className   = 'proy-proj-total';
+            colLblEl.textContent  = `+${projColecta.more} más`;
+        } else {
+            colProjEl.textContent = `${colectaPending} ahora`;
+            colProjEl.className   = 'proy-proj-total no-data';
+            colLblEl.textContent  = 'sin datos';
+        }
+
+        // ── Total combinado al corte (panel + indicador rápido siempre visible) ──
+        const totalRow  = document.getElementById('proyTotalRow');
+        const quickEl   = document.getElementById('proyQuick');
+        const quickValEl = document.getElementById('proyQuickVal');
+        const hasOneProj = projFlex.total !== null || projColecta.total !== null;
+        if (hasOneProj) {
+            const tot     = (projFlex.total || flexPending) + (projColecta.total || colectaPending);
+            const moreTot = (projFlex.more || 0) + (projColecta.more || 0);
+            // Panel interior
+            document.getElementById('proyTotalVal').textContent = `≈ ${tot}`;
+            document.getElementById('proyTotalSub').textContent = moreTot > 0 ? `+${moreTot} más hasta el corte` : 'al corte';
+            totalRow.style.display = 'flex';
+            // Indicador rápido en la barra
+            quickValEl.textContent = tot;
+            quickEl.style.display  = 'flex';
+        } else {
+            totalRow.style.display = 'none';
+            quickEl.style.display  = 'none';
+        }
+
+        // ── Tiempo de preparación (ahora vs al corte) ──
+        const tiempoRow = document.getElementById('proyTiempoRow');
+        const totalAhora  = flexPending + colectaPending;
+        const totalCorte  = hasOneProj
+            ? (projFlex.total || flexPending) + (projColecta.total || colectaPending)
+            : null;
+        if (totalAhora > 0 || totalCorte) {
+            const minAhoraP = calcTiempoPrep(totalAhora);
+            document.getElementById('ptValAhora').textContent = fmtTiempo(minAhoraP);
+            document.getElementById('ptSubAhora').textContent = `${totalAhora} paq`;
+            if (totalCorte !== null) {
+                const minCorte = calcTiempoPrep(totalCorte);
+                document.getElementById('ptValCorte').textContent = fmtTiempo(minCorte);
+                document.getElementById('ptSubCorte').textContent = `≈ ${totalCorte} paq`;
+            } else {
+                document.getElementById('ptValCorte').textContent = '—';
+                document.getElementById('ptSubCorte').textContent = 'sin datos';
+            }
+            tiempoRow.style.display = 'grid';
+        } else {
+            tiempoRow.style.display = 'none';
+        }
+
+        // ── Nota muestra ──
+        const totalDates = allFlexDates.length + allColectaDates.length;
+        const noteEl = document.getElementById('proyNote');
+        if (totalDates === 0) {
+            noteEl.textContent = 'sin órdenes en las últimas 24h';
+        } else if (totalDates < 4) {
+            noteEl.textContent = `muestra pequeña · ${totalDates} orden${totalDates !== 1 ? 'es' : ''} en 24h`;
+        } else {
+            noteEl.textContent = `basado en ${totalDates} órdenes de las últimas 24h`;
+        }
+
+        toggle.style.display = 'inline-flex';
+    }
+
+    // ══════════════════════════════════════════════
     //  ORQUESTACIÓN
     // ══════════════════════════════════════════════
     async function cargarTodo(usarCachePrevia = false) {
@@ -785,7 +1371,17 @@
         const btn = document.getElementById('reloadBtn');
         btn.disabled = true;
         document.getElementById('reloadIcon').textContent = '⟳';
-        btn.querySelector('span').style.animation = 'spin 0.7s linear infinite';
+        document.getElementById('reloadIcon').style.animation = 'spin 0.7s linear infinite';
+
+        // Ocultar panel de proyección mientras carga
+        const proyToggle = document.getElementById('proyToggle');
+        const proyPanel  = document.getElementById('proyPanel');
+        proyToggle.style.display = 'none';
+        proyPanel.style.display  = 'none';
+        proyToggle.classList.remove('open');
+        document.getElementById('heroRatesMini').style.display = 'none';
+        document.getElementById('proyQuick').style.display   = 'none';
+        document.getElementById('heroTiempo').style.display  = 'none';
 
         if (resultadosCache) {
             renderResultados(resultadosCache.data, true);
@@ -810,7 +1406,7 @@
         const resultados = settled.map((r, i) => {
             if (r.status === 'fulfilled') return r.value;
             console.error(`Error ${CUENTAS[i].nombre}:`, r.reason);
-            return { cuenta: CUENTAS[i], ready: empty(), printed: empty(), pendEsc: empty(), buffered: 0, bufferedUni: 0, error: true };
+            return { cuenta: CUENTAS[i], ready: empty(), printed: empty(), pendEsc: empty(), buffered: 0, bufferedUni: 0, flexDatesAll: [], colectaDatesAll: [], error: true };
         });
         const hayError = resultados.some(r => r.error);
 
@@ -819,7 +1415,7 @@
         checkStaleness();
 
         btn.disabled = false;
-        btn.querySelector('span').style.animation = '';
+        document.getElementById('reloadIcon').style.animation = '';
         actualizarHeaderTime();
         setStatus(hayError ? 'error' : 'live');
     }
@@ -937,6 +1533,20 @@
         }
         document.getElementById('heroCachedBadge').style.display = fromCache ? 'inline-block' : 'none';
 
+        // ── TIEMPO DE TRABAJO ACTUAL ──
+        const totalPendienteAhora = totReady + sum('printed', 'total');
+        const minAhora = calcTiempoPrep(totalPendienteAhora);
+        const tiempoEl = document.getElementById('heroTiempo');
+        if (totalPendienteAhora > 0) {
+            document.getElementById('heroTiempoVal').textContent = fmtTiempo(minAhora);
+            tiempoEl.style.display = 'inline-flex';
+        } else {
+            tiempoEl.style.display = 'none';
+        }
+
+        // ── PROYECCIÓN ──
+        renderProyeccion(resultados);
+
         // ── CARDS POR CUENTA ──
         let html = '';
         resultados.forEach((r, i) => {
@@ -945,7 +1555,6 @@
             const horario = getHorarioHoy(c.nombre);
             const allClear = !r.error && (r.ready?.total || 0) === 0 && (r.printed?.total || 0) === 0 && !r.buffered;
             const hasImpresos = (r.printed?.total || 0) > 0;
-            // Ventas mini = total de paquetes para imprimir (Flex + Colecta) de esta cuenta
             const paraImprimirCuenta = (r.ready?.flex || 0) + (r.ready?.colecta || 0);
             const ventasMini = paraImprimirCuenta > 0
                 ? `<span class="ventas-mini">· <b>${paraImprimirCuenta}</b> p/imp</span>`
@@ -993,7 +1602,6 @@
         };
         const totalAllClear = totReady === 0 && totPrint === 0 && totEsc === 0 && !totBuffered;
         const avgTot = formatAvg(totReady, totReadyU);
-        // Total de "para imprimir" sumando todas las cuentas (Flex + Colecta de cada una)
         const totalVentasParaImprimirGlobal = totReady;
 
         const hasImpresosTotal = totPrint > 0;
@@ -1034,7 +1642,6 @@
     //  TOGGLE EXPAND
     // ══════════════════════════════════════════════
     window.toggleCard = function(card) {
-        // Total solo expande si tiene la clase total-expandible
         if (card.classList.contains('total') && !card.classList.contains('total-expandible')) return;
         if (card.querySelector('.all-clear-compact')) return;
         card.classList.toggle('expanded');
