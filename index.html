@@ -851,6 +851,7 @@
 
     const AUTH_WORKER = 'https://ml-auth-codes.rafaelassir.workers.dev';
     let HORARIOS = { Mikra: {}, Chaya: {} };
+    let HORARIOS_PROXIMA = { Mikra: {}, Chaya: {} };
     let HORARIOS_META = { Mikra: null, Chaya: null };
 
     const TOKEN_TTL_MS   = 55 * 60 * 1000;
@@ -1112,6 +1113,11 @@
                     for (const [k, v] of Object.entries(data.horarios)) h[Number(k)] = v;
                     HORARIOS[c.nombre] = h;
                     HORARIOS_META[c.nombre] = { fecha: data.fecha, updated: data.updated };
+                }
+                if (data.proxima) {
+                    const hp = {};
+                    for (const [k, v] of Object.entries(data.proxima)) hp[Number(k)] = v;
+                    HORARIOS_PROXIMA[c.nombre] = hp;
                 }
             } catch(e) {}
         }));
@@ -1424,11 +1430,43 @@
     //  RENDER HELPERS
     // ══════════════════════════════════════════════
     function getHorarioHoy(cuentaNombre) {
+        const today = new Date().getDay();
         const horarios = HORARIOS[cuentaNombre];
-        if (!horarios) return null;
-        const h = horarios[new Date().getDay()];
-        if (!h || !h.cutoff) return null;
-        return h;
+        if (horarios) {
+            const h = horarios[today];
+            if (h && h.cutoff) return h;
+        }
+        const proxima = HORARIOS_PROXIMA[cuentaNombre];
+        if (proxima) {
+            const hp = proxima[today];
+            if (hp && hp.cutoff) return hp;
+        }
+        return null;
+    }
+
+    // Devuelve el patrón semanal Lun–Vie para mostrar en fines de semana.
+    // tipo 'uniforme' → todos los días tienen el mismo cutoff
+    // tipo 'variado'  → cutoffs distintos por día
+    // tipo 'sin_datos' → no hay nada guardado
+    function getResumenSemanal(cuentaNombre) {
+        const NOMBRES = ['', 'Lun', 'Mar', 'Mié', 'Jue', 'Vie'];
+        const diasLaborales = [1, 2, 3, 4, 5];
+        const porDia = {};
+        for (const dia of diasLaborales) {
+            const h = HORARIOS[cuentaNombre];
+            const hp = HORARIOS_PROXIMA[cuentaNombre];
+            const val = (h && h[dia] && h[dia].cutoff) ? h[dia]
+                      : (hp && hp[dia] && hp[dia].cutoff) ? hp[dia]
+                      : null;
+            if (val) porDia[dia] = val;
+        }
+        const conDatos = diasLaborales.filter(d => porDia[d]);
+        if (!conDatos.length) return { tipo: 'sin_datos' };
+        const cutoffs = [...new Set(conDatos.map(d => porDia[d].cutoff))];
+        if (cutoffs.length === 1) {
+            return { tipo: 'uniforme', cutoff: cutoffs[0] };
+        }
+        return { tipo: 'variado', dias: conDatos.map(d => ({ nombre: NOMBRES[d], cutoff: porDia[d].cutoff })) };
     }
 
     function extraerHorarioPrincipal(action) {
@@ -1447,8 +1485,22 @@
         return { h: Number(m[1]), m: Number(m[2]) };
     }
 
-    function renderHorario(horario, readyTotal) {
-        if (!horario) return `<div class="card-horario none">💤 Sin hoy</div>`;
+    function renderHorario(horario, readyTotal, cuentaNombre) {
+        if (!horario) {
+            const hoy = new Date().getDay();
+            const esFinDeSemana = (hoy === 0 || hoy === 6);
+            if (esFinDeSemana && cuentaNombre) {
+                const res = getResumenSemanal(cuentaNombre);
+                if (res.tipo === 'uniforme') {
+                    return `<div class="card-horario" title="Próxima semana">📅 Lun–Vie · <b>${res.cutoff}</b></div>`;
+                }
+                if (res.tipo === 'variado') {
+                    const txt = res.dias.map(d => `${d.nombre} ${d.cutoff}`).join(' · ');
+                    return `<div class="card-horario" style="font-size:10px" title="Próxima semana">📅 ${txt}</div>`;
+                }
+            }
+            return `<div class="card-horario none">💤 Sin hoy</div>`;
+        }
         const principal = extraerHorarioPrincipal(horario.action);
         const tope = extraerHoraTope(horario.action);
         const now = new Date();
@@ -1566,7 +1618,7 @@
                  onclick="toggleCard(this)">
                 <div class="card-header-row">
                     <div class="card-name">${c.nombre}${ventasMini}</div>
-                    ${renderHorario(horario, r.ready?.total || 0)}
+                    ${renderHorario(horario, r.ready?.total || 0, c.nombre)}
                 </div>
                 ${r.error
                     ? `<div class="error-badge">⚠️ Error al cargar</div>`
