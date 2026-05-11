@@ -854,7 +854,7 @@
     let HORARIOS_PROXIMA = { Mikra: {}, Chaya: {} };
     let HORARIOS_META = { Mikra: null, Chaya: null };
 
-    const TOKEN_TTL_MS   = 55 * 60 * 1000;
+    const TOKEN_TTL_MS   = 5.5 * 60 * 60 * 1000; // 5.5h — tokens ML duran 6h
     const RESULTS_TTL_MS =  3 * 60 * 1000;
     const FETCH_TIMEOUT  = 12_000;
     const MAX_RETRIES    = 3;
@@ -866,8 +866,34 @@
     const FLEX_CORTE_H = 14, FLEX_CORTE_M = 0;
     const COLECTA_CORTE_H = 15, COLECTA_CORTE_M = 0;
 
-    const tokenCache = {};
+    const TOKEN_LS_KEY = 'ml_token_cache_v1';
     let   resultadosCache = null;
+
+    // Token cache persistido en localStorage para sobrevivir recargas y compartir entre apps
+    const tokenCache = {
+        get(proxy) {
+            try {
+                const all = JSON.parse(localStorage.getItem(TOKEN_LS_KEY) || '{}');
+                const e = all[proxy];
+                if (e && Date.now() < e.expiresAt) return e;
+            } catch(e) {}
+            return null;
+        },
+        set(proxy, token, userId) {
+            try {
+                const all = JSON.parse(localStorage.getItem(TOKEN_LS_KEY) || '{}');
+                all[proxy] = { token, userId, expiresAt: Date.now() + TOKEN_TTL_MS };
+                localStorage.setItem(TOKEN_LS_KEY, JSON.stringify(all));
+            } catch(e) {}
+        },
+        delete(proxy) {
+            try {
+                const all = JSON.parse(localStorage.getItem(TOKEN_LS_KEY) || '{}');
+                delete all[proxy];
+                localStorage.setItem(TOKEN_LS_KEY, JSON.stringify(all));
+            } catch(e) {}
+        }
+    };
 
     // ══════════════════════════════════════════════
     //  HELPERS
@@ -906,19 +932,13 @@
     //  TOKEN
     // ══════════════════════════════════════════════
     async function getToken(cuenta) {
-        const cached = tokenCache[cuenta.proxy];
-        if (cached && Date.now() < cached.expiresAt) {
-            return { access_token: cached.token, user_id: cached.userId };
-        }
+        const cached = tokenCache.get(cuenta.proxy);
+        if (cached) return { access_token: cached.token, user_id: cached.userId };
         const data = await jsonConRetry(`${cuenta.proxy}/get-token`);
-        tokenCache[cuenta.proxy] = {
-            token: data.access_token,
-            userId: data.user_id,
-            expiresAt: Date.now() + TOKEN_TTL_MS
-        };
+        tokenCache.set(cuenta.proxy, data.access_token, data.user_id);
         return data;
     }
-    function invalidarToken(proxy) { delete tokenCache[proxy]; }
+    function invalidarToken(proxy) { tokenCache.delete(proxy); }
 
     // ══════════════════════════════════════════════
     //  CARGA POR CUENTA
@@ -1100,9 +1120,73 @@
     }
 
     // ══════════════════════════════════════════════
-    //  HORARIOS DEL WORKER
+    //  HORARIOS DEL WORKER — con cache en localStorage
+    //  Fetcha del worker una vez por día laborable.
+    //  Fines de semana usa el último cache guardado.
     // ══════════════════════════════════════════════
+    const HORARIOS_CACHE_KEY = 'ml_horarios_v1';
+
+    function leerCacheHorarios() {
+        try { return JSON.parse(localStorage.getItem(HORARIOS_CACHE_KEY)) || null; }
+        catch(e) { return null; }
+    }
+
+    function aplicarCacheHorarios(cache) {
+        if (!cache?.data) return;
+        for (const c of CUENTAS) {
+            const d = cache.data[c.nombre];
+            if (!d) continue;
+            if (d.horarios) {
+                const h = {};
+                for (const [k, v] of Object.entries(d.horarios)) h[Number(k)] = v;
+                HORARIOS[c.nombre] = h;
+                if (d.meta) HORARIOS_META[c.nombre] = d.meta;
+            }
+            if (d.proxima) {
+                const hp = {};
+                for (const [k, v] of Object.entries(d.proxima)) hp[Number(k)] = v;
+                HORARIOS_PROXIMA[c.nombre] = hp;
+            }
+        }
+    }
+
+    function guardarCacheHorarios() {
+        try {
+            const data = {};
+            for (const c of CUENTAS) {
+                data[c.nombre] = {
+                    horarios: HORARIOS[c.nombre],
+                    proxima:  HORARIOS_PROXIMA[c.nombre],
+                    meta:     HORARIOS_META[c.nombre]
+                };
+            }
+            localStorage.setItem(HORARIOS_CACHE_KEY, JSON.stringify({
+                data,
+                fecha: new Date().toISOString().split('T')[0]
+            }));
+        } catch(e) {}
+    }
+
     async function cargarHorarios() {
+        const diaSemana  = new Date().getDay();
+        const esFinDeSemana = (diaSemana === 0 || diaSemana === 6);
+        const fechaHoy   = new Date().toISOString().split('T')[0];
+        const cache      = leerCacheHorarios();
+        const cacheDeHoy = cache?.fecha === fechaHoy;
+
+        if (cacheDeHoy) {
+            // Cache fresco del día → usar siempre sin fetchear
+            aplicarCacheHorarios(cache);
+            return;
+        }
+
+        if (esFinDeSemana && cache) {
+            // Fin de semana + hay cache (aunque sea de otro día) → no fetchear
+            aplicarCacheHorarios(cache);
+            return;
+        }
+
+        // Día laborable sin cache de hoy → fetchear del worker
         await Promise.allSettled(CUENTAS.map(async c => {
             try {
                 const res = await fetch(`${AUTH_WORKER}/get-horario/${c.nombre.toLowerCase()}`);
@@ -1121,6 +1205,8 @@
                 }
             } catch(e) {}
         }));
+
+        guardarCacheHorarios();
     }
 
     function checkStaleness() {
@@ -1738,9 +1824,7 @@
     // ══════════════════════════════════════════════
     //  AUTO-REFRESH & GESTOS
     // ══════════════════════════════════════════════
-    setInterval(() => {
-        if (!document.getElementById('reloadBtn').disabled) cargarTodo(false);
-    }, 5 * 60 * 1000);
+    // Auto-refresh eliminado — usar el botón ⟳ manualmente
 
     let touchStartY = 0;
     document.addEventListener('touchstart', e => {
