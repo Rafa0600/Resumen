@@ -891,18 +891,18 @@
         }
 
         /* ── VISTA SIMPLE / SIN PROYECCIÓN (ocultar secciones) ── */
-        /* Simple = solo lo esencial, pero mantiene unidades por paquete (u/paq,
-           "X u" en cada caja) y el tap para ver impresos. Saca métricas extra. */
+        /* Simple = solo cantidad de paquetes. Sin unidades totales, sin promedio
+           u/paq, sin las "X u" de abajo ni métricas/proyección. Mantiene el tap
+           para ver impresos. */
         body.vista-simple .hero-rates-mini,
         body.vista-simple .hero-tiempo,
+        body.vista-simple .hero-avg,
+        body.vista-simple .hero-units,
+        body.vista-simple .tipo-uni,
+        body.vista-simple .tot-avg,
         body.vista-simple .proy-toggle,
         body.vista-simple .proy-quick,
         body.vista-simple #proyPanel { display: none !important; }
-
-        body.sin-proyeccion .proy-toggle,
-        body.sin-proyeccion .proy-quick,
-        body.sin-proyeccion #proyPanel,
-        body.sin-proyeccion .hero-rates-mini { display: none !important; }
     </style>
 </head>
 <body>
@@ -1033,23 +1033,11 @@
                 <div class="set-section-title">Vista</div>
                 <div class="segmented" id="vistaSeg">
                     <button data-vista="simple">Simple</button>
-                    <button data-vista="completa">Completa</button>
+                    <button data-vista="completa">Detallada</button>
                 </div>
-                <div class="set-row">
-                    <div class="set-label">Mostrar proyección<small>velocidad de ventas y total al corte</small></div>
-                    <label class="switch"><input type="checkbox" id="prefProy"><span class="slider"></span></label>
-                </div>
-            </div>
-
-            <div class="set-section">
-                <div class="set-section-title">Cuentas a cargar</div>
-                <div class="set-row">
-                    <div class="set-label">Mikra<small>si la apagás no se consulta (ahorra datos)</small></div>
-                    <label class="switch"><input type="checkbox" id="prefMikra"><span class="slider"></span></label>
-                </div>
-                <div class="set-row">
-                    <div class="set-label">Chaya<small>si la apagás no se consulta (ahorra datos)</small></div>
-                    <label class="switch"><input type="checkbox" id="prefChaya"><span class="slider"></span></label>
+                <div class="set-hint" style="margin-top:10px;">
+                    <b>Simple:</b> solo la cantidad de paquetes.<br>
+                    <b>Detallada:</b> unidades, promedio u/paq, velocidad y proyección.
                 </div>
             </div>
 
@@ -1102,23 +1090,19 @@
     // ══════════════════════════════════════════════
     const PREFS_KEY = 'resumen_prefs_v1';
     const DEFAULT_PREFS = {
-        vista: 'completa',              // 'simple' | 'completa'
-        mostrarProyeccion: true,
-        cuentas: { Mikra: true, Chaya: true }
+        vista: 'completa'               // 'simple' | 'completa' (detallada)
     };
     let PREFS = cargarPrefs();
 
     function cargarPrefs() {
         try {
             const p = JSON.parse(localStorage.getItem(PREFS_KEY)) || {};
-            return {
-                ...DEFAULT_PREFS, ...p,
-                cuentas:  { ...DEFAULT_PREFS.cuentas, ...(p.cuentas || {}) }
-            };
-        } catch (e) { return JSON.parse(JSON.stringify(DEFAULT_PREFS)); }
+            return { vista: p.vista === 'simple' ? 'simple' : 'completa' };
+        } catch (e) { return { ...DEFAULT_PREFS }; }
     }
     function guardarPrefs() { try { localStorage.setItem(PREFS_KEY, JSON.stringify(PREFS)); } catch (e) {} }
-    function cuentasActivas() { return CUENTAS.filter(c => PREFS.cuentas[c.nombre] !== false); }
+    // Siempre se cargan ambas cuentas.
+    function cuentasActivas() { return CUENTAS; }
 
     // ══════════════════════════════════════════════
     //  CACHE PERSISTENTE DE RESULTADOS (carga instantánea)
@@ -2180,7 +2164,7 @@
             <div class="card-header-row">
                 <div class="card-name">Total${totalVentasParaImprimirGlobal ? `<span class="ventas-mini">· <b>${totalVentasParaImprimirGlobal}</b> p/imp</span>` : ''}</div>
                 <div class="card-horario" style="font-size:11px">
-                    ${avgTot ? `<span style="color:var(--muted-2)">⌀ ${avgTot} u/paq</span>` : `<span style="color:var(--muted)">—</span>`}
+                    ${avgTot ? `<span class="tot-avg" style="color:var(--muted-2)">⌀ ${avgTot} u/paq</span>` : `<span style="color:var(--muted)">—</span>`}
                 </div>
             </div>
             ${totalAllClear
@@ -2303,15 +2287,11 @@
     // ══════════════════════════════════════════════
     function aplicarPrefs() {
         document.body.classList.toggle('vista-simple', PREFS.vista === 'simple');
-        document.body.classList.toggle('sin-proyeccion', !PREFS.mostrarProyeccion);
     }
 
     function sincronizarControles() {
         document.querySelectorAll('#vistaSeg button').forEach(b =>
             b.classList.toggle('active', b.dataset.vista === PREFS.vista));
-        document.getElementById('prefProy').checked  = PREFS.mostrarProyeccion;
-        document.getElementById('prefMikra').checked = PREFS.cuentas.Mikra !== false;
-        document.getElementById('prefChaya').checked = PREFS.cuentas.Chaya !== false;
     }
 
     function inicializarAjustes() {
@@ -2327,20 +2307,6 @@
                 if (resultadosCache) renderResultados(resultadosCache.data, true);
             };
         });
-        document.getElementById('prefProy').onchange = e => {
-            PREFS.mostrarProyeccion = e.target.checked;
-            guardarPrefs(); aplicarPrefs();
-        };
-        const bindCuenta = (nombre, el) => {
-            el.onchange = e => {
-                PREFS.cuentas[nombre] = e.target.checked;
-                guardarPrefs();
-                resultadosCache = null;          // forzar refetch limpio
-                cargarTodo(false);
-            };
-        };
-        bindCuenta('Mikra', document.getElementById('prefMikra'));
-        bindCuenta('Chaya', document.getElementById('prefChaya'));
     }
 
     // ── INICIO ──
