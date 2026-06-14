@@ -824,6 +824,15 @@
         .set-row:last-child { border-bottom: none; }
         .set-label { font-size: 13px; color: var(--text); }
         .set-label small { display: block; font-size: 10px; color: var(--muted); margin-top: 2px; }
+        .num-input {
+            width: 70px; flex-shrink: 0;
+            background: var(--surface-2);
+            border: 1px solid var(--border-bright);
+            border-radius: 8px; color: var(--text);
+            padding: 8px; font-family: 'Space Mono', monospace;
+            font-size: 15px; text-align: center;
+        }
+        .num-input:focus { outline: none; border-color: var(--yellow); }
 
         /* switch */
         .switch { position: relative; width: 44px; height: 25px; flex-shrink: 0; }
@@ -890,6 +899,70 @@
             line-height: 1.4;
         }
 
+        /* ── CHIP "FLEX A ESCANEAR" (esquina del hero) ── */
+        .hero { position: relative; }
+        .hero-escanear {
+            position: absolute;
+            top: 8px; left: 12px;
+            display: flex;
+            align-items: center;
+            gap: 5px;
+            background: rgba(64,196,255,0.08);
+            border: 1px solid rgba(64,196,255,0.28);
+            border-radius: 20px;
+            padding: 5px 11px;
+            font-family: 'Space Mono', monospace;
+            line-height: 1;
+            max-width: 46%;
+        }
+        .hero-escanear b {
+            color: var(--blue);
+            font-weight: 700;
+            font-size: 17px;
+        }
+        .hero-escanear .he-lbl {
+            font-size: 8.5px;
+            color: var(--muted-2);
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            line-height: 1.1;
+        }
+        .hero-escanear.zero { opacity: 0.4; }
+        .hero-escanear.zero b { color: var(--muted); }
+
+        /* ── DELTA VOLANDO (+N / −N donde cambió) ── */
+        .fly-delta {
+            position: fixed;
+            transform: translate(-50%, 0);
+            font-family: 'Space Mono', monospace;
+            font-weight: 700;
+            font-size: 25px;
+            pointer-events: none;
+            z-index: 300;
+            text-shadow: 0 0 14px currentColor;
+            animation: flyUp 3.6s cubic-bezier(.2,.7,.3,1) forwards;
+        }
+        .fly-delta.pos { color: var(--green); }
+        .fly-delta.neg { color: var(--red); }
+        /* Sube rápido, se queda visible ~2s, después flota y se desvanece. */
+        @keyframes flyUp {
+            0%   { opacity: 0; transform: translate(-50%, 10px) scale(0.6); }
+            9%   { opacity: 1; transform: translate(-50%, -6px) scale(1.25); }
+            18%  { opacity: 1; transform: translate(-50%, -11px) scale(1); }
+            68%  { opacity: 1; transform: translate(-50%, -20px) scale(1); }
+            100% { opacity: 0; transform: translate(-50%, -62px) scale(0.95); }
+        }
+        @keyframes boxFlashPos {
+            0%, 100% { box-shadow: 0 0 0 0 transparent; }
+            25%, 55% { box-shadow: 0 0 0 2px var(--green), 0 0 16px 1px rgba(0,230,118,0.45); }
+        }
+        @keyframes boxFlashNeg {
+            0%, 100% { box-shadow: 0 0 0 0 transparent; }
+            25%, 55% { box-shadow: 0 0 0 2px var(--red), 0 0 16px 1px rgba(255,68,68,0.45); }
+        }
+        .tipo-box.flash-pos { animation: boxFlashPos 2.6s ease; }
+        .tipo-box.flash-neg { animation: boxFlashNeg 2.6s ease; }
+
         /* ── VISTA SIMPLE / SIN PROYECCIÓN (ocultar secciones) ── */
         /* Simple = solo cantidad de paquetes. Sin unidades totales, sin promedio
            u/paq, sin las "X u" de abajo ni métricas/proyección. Mantiene el tap
@@ -902,6 +975,7 @@
         body.vista-simple .tot-avg,
         body.vista-simple .proy-toggle,
         body.vista-simple .proy-quick,
+        body.vista-simple .escanear-block,
         body.vista-simple #proyPanel { display: none !important; }
     </style>
 </head>
@@ -916,6 +990,10 @@
     </div>
 
     <div class="hero" id="hero">
+        <div class="hero-escanear" id="heroEscanear" style="display:none" title="Flex impresos sin escanear (ambas cuentas)">
+            📡 <b id="heroEscanearNum">0</b>
+            <span class="he-lbl">flex<br>a escanear</span>
+        </div>
         <div class="hero-label">Para imprimir</div>
         <div class="hero-number-row">
             <div class="hero-number" id="heroNumber">0</div>
@@ -1039,6 +1117,19 @@
                     <b>Simple:</b> solo la cantidad de paquetes.<br>
                     <b>Detallada:</b> unidades, promedio u/paq, velocidad y proyección.
                 </div>
+                <div class="set-row" style="margin-top:6px;">
+                    <div class="set-label">📡 Flex a escanear<small>impresos sin escanear, arriba a un costado</small></div>
+                    <label class="switch"><input type="checkbox" id="prefEscanear"><span class="slider"></span></label>
+                </div>
+            </div>
+
+            <div class="set-section">
+                <div class="set-section-title">Tiempo de preparación</div>
+                <div class="set-row">
+                    <div class="set-label">Minutos cada 50 paquetes<small>base para estimar el tiempo de trabajo (detallada)</small></div>
+                    <input type="number" id="prefMin50" class="num-input" min="5" max="240" step="1" inputmode="numeric">
+                </div>
+                <div class="set-hint" id="min50Hint" style="margin-top:8px;"></div>
             </div>
 
             <div class="set-hint">La proyección detecta sola los feriados de Argentina y salta los fines de semana: calcula el próximo corte real (ej. domingo → martes si el lunes es feriado).</div>
@@ -1090,14 +1181,23 @@
     // ══════════════════════════════════════════════
     const PREFS_KEY = 'resumen_prefs_v1';
     const DEFAULT_PREFS = {
-        vista: 'completa'               // 'simple' | 'completa' (detallada)
+        vista: 'completa',              // 'simple' | 'completa' (detallada)
+        verEscanear: true,              // chip "Flex a escanear" en el hero
+        minPor50: 35                    // minutos para preparar 50 paquetes
     };
     let PREFS = cargarPrefs();
 
     function cargarPrefs() {
         try {
             const p = JSON.parse(localStorage.getItem(PREFS_KEY)) || {};
-            return { vista: p.vista === 'simple' ? 'simple' : 'completa' };
+            let m = Number(p.minPor50);
+            if (!isFinite(m) || m < 5) m = 35;
+            if (m > 240) m = 240;
+            return {
+                vista: p.vista === 'simple' ? 'simple' : 'completa',
+                verEscanear: p.verEscanear !== false,
+                minPor50: m
+            };
         } catch (e) { return { ...DEFAULT_PREFS }; }
     }
     function guardarPrefs() { try { localStorage.setItem(PREFS_KEY, JSON.stringify(PREFS)); } catch (e) {} }
@@ -1108,8 +1208,8 @@
     //  CACHE PERSISTENTE DE RESULTADOS (carga instantánea)
     // ══════════════════════════════════════════════
     const RESULTS_LS_KEY = 'resumen_resultados_v1';
-    function guardarResultadosCache(data, fetchedAt) {
-        try { localStorage.setItem(RESULTS_LS_KEY, JSON.stringify({ data, fetchedAt })); } catch (e) {}
+    function guardarResultadosCache(data, fetchedAt, liviano) {
+        try { localStorage.setItem(RESULTS_LS_KEY, JSON.stringify({ data, fetchedAt, liviano: !!liviano })); } catch (e) {}
     }
     function leerResultadosCache() {
         try {
@@ -1227,7 +1327,7 @@
     // ══════════════════════════════════════════════
     //  CARGA POR CUENTA
     // ══════════════════════════════════════════════
-    async function cargarCuenta(cuenta) {
+    async function cargarCuenta(cuenta, liviano = false) {
         let { access_token, user_id } = await getToken(cuenta);
         const makeAuthOpts = () => ({ headers: { 'Authorization': `Bearer ${access_token}` } });
 
@@ -1292,12 +1392,15 @@
             return items;
         }
 
+        // Vista simple (liviano): solo lo necesario para "para imprimir" + chip
+        // de flex a escanear. Omite el barrido de despachados de 7 días (lo más
+        // pesado) y buffered → menos datos, carga más rápida.
         const [readyItems, printedItems, pickupItems, bufferedItems, shippedRecientes] = await Promise.all([
             fetchSubstatus('ready_to_print'),
             fetchSubstatus('printed'),
             fetchSubstatus('ready_for_pickup'),
-            fetchSubstatus('buffered'),
-            fetchShippedRecientes()
+            liviano ? Promise.resolve([]) : fetchSubstatus('buffered'),
+            liviano ? Promise.resolve([]) : fetchShippedRecientes()
         ]);
 
         const PRIORIDAD = { ready_to_print: 4, printed: 3, ready_for_pickup: 2, buffered: 1 };
@@ -1664,11 +1767,11 @@
         return (perHour * 60).toFixed(1); // menos de 1/h → mostrar por hora igual
     }
 
-    // 50 paquetes = 35 minutos → 0.7 min/paq
-    const MIN_POR_PAQ = 35 / 50;
+    // Minutos por paquete, derivado del valor configurable "minutos cada 50 paq".
+    function minPorPaq() { return (PREFS.minPor50 || 35) / 50; }
 
     function calcTiempoPrep(paquetes) {
-        return Math.round(paquetes * MIN_POR_PAQ);
+        return Math.round(paquetes * minPorPaq());
     }
 
     function fmtTiempo(minutos) {
@@ -1867,6 +1970,7 @@
 
         cargando = true;
         const activas = cuentasActivas();
+        const liviano = PREFS.vista === 'simple';
         const btn = document.getElementById('reloadBtn');
         btn.disabled = true;
         document.getElementById('reloadIcon').textContent = '⟳';
@@ -1899,7 +2003,7 @@
         setStatus('loading');
 
         const [settled] = await Promise.all([
-            Promise.allSettled(activas.map(c => cargarCuenta(c))),
+            Promise.allSettled(activas.map(c => cargarCuenta(c, liviano))),
             cargarHorarios()
         ]);
 
@@ -1911,8 +2015,8 @@
         });
         const hayError = resultados.some(r => r.error);
 
-        resultadosCache = { data: resultados, fetchedAt: Date.now() };
-        guardarResultadosCache(resultados, resultadosCache.fetchedAt);
+        resultadosCache = { data: resultados, fetchedAt: Date.now(), liviano };
+        guardarResultadosCache(resultados, resultadosCache.fetchedAt, liviano);
         renderResultados(resultados, false);
         checkStaleness();
         finProgreso();
@@ -2021,16 +2125,18 @@
     }
 
     // ── Secciones Flex/Colecta ──────────────────────
-    function renderTipoGrid(datos, esImpresos = false) {
+    function renderTipoGrid(datos, esImpresos = false, flyKey = null) {
         const gridClass = esImpresos ? 'tipo-grid impresos-grid' : 'tipo-grid';
+        const flyFlex = flyKey ? ` data-fly="${flyKey}:flex"` : '';
+        const flyCol  = flyKey ? ` data-fly="${flyKey}:colecta"` : '';
         return `
             <div class="${gridClass}">
-                <div class="tipo-box flex">
+                <div class="tipo-box flex"${flyFlex}>
                     <div class="tipo-lbl">🏍️ Flex</div>
                     <div class="tipo-num ${datos.flex === 0 ? 'zero' : ''}">${datos.flex}</div>
                     <div class="tipo-uni ${datos.flexUni === 0 ? 'zero' : ''}">${datos.flexUni} u</div>
                 </div>
-                <div class="tipo-box colecta">
+                <div class="tipo-box colecta"${flyCol}>
                     <div class="tipo-lbl">📦 Colecta</div>
                     <div class="tipo-num ${datos.colecta === 0 ? 'zero' : ''}">${datos.colecta}</div>
                     <div class="tipo-uni ${datos.colectaUni === 0 ? 'zero' : ''}">${datos.colectaUni} u</div>
@@ -2053,8 +2159,51 @@
             </div>`;
     }
 
+    // ── ANIMACIÓN "+N volando" cuando cambian los para-imprimir ──
+    let prevReadySnapshot = null;
+
+    function buildReadySnapshot(resultados) {
+        const snap = {};
+        let tf = 0, tc = 0;
+        resultados.forEach(r => {
+            const f = r.ready?.flex || 0, c = r.ready?.colecta || 0;
+            snap[`${r.cuenta.nombre}:flex`]    = f;
+            snap[`${r.cuenta.nombre}:colecta`] = c;
+            tf += f; tc += c;
+        });
+        snap['Total:flex'] = tf; snap['Total:colecta'] = tc;
+        return snap;
+    }
+
+    function flyDelta(boxEl, delta) {
+        if (!delta) return;
+        const rect = boxEl.getBoundingClientRect();
+        const el = document.createElement('div');
+        el.className = 'fly-delta ' + (delta > 0 ? 'pos' : 'neg');
+        el.textContent = (delta > 0 ? '+' : '') + delta;
+        el.style.left = (rect.left + rect.width / 2) + 'px';
+        el.style.top  = (rect.top + 6) + 'px';
+        document.body.appendChild(el);
+        el.addEventListener('animationend', () => el.remove());
+    }
+
+    function animarDeltas(oldSnap, newSnap) {
+        Object.keys(newSnap).forEach(k => {
+            const delta = (newSnap[k] || 0) - (oldSnap[k] || 0);
+            if (!delta) return;
+            const box = document.querySelector(`[data-fly="${k}"]`);
+            if (!box) return;
+            flyDelta(box, delta);
+            box.classList.remove('flash-pos', 'flash-neg');
+            void box.offsetWidth; // reiniciar animación
+            box.classList.add(delta > 0 ? 'flash-pos' : 'flash-neg');
+        });
+    }
+
     function renderResultados(resultados, fromCache = false) {
         const sum = (key, sub) => resultados.reduce((a, r) => a + (r[key]?.[sub] || 0), 0);
+        const oldSnap = prevReadySnapshot;
+        const newSnap = buildReadySnapshot(resultados);
 
         const totReady  = sum('ready', 'total');
         const totReadyU = sum('ready', 'totalUni');
@@ -2082,6 +2231,17 @@
             avgEl.style.display = 'none';
         }
         document.getElementById('heroCachedBadge').style.display = fromCache ? 'inline-block' : 'none';
+
+        // ── CHIP "FLEX A ESCANEAR" (impresos flex sin escanear, ambas cuentas) ──
+        const escFlex = sum('printed', 'flex');
+        const heroEsc = document.getElementById('heroEscanear');
+        if (PREFS.verEscanear) {
+            document.getElementById('heroEscanearNum').textContent = escFlex;
+            heroEsc.classList.toggle('zero', escFlex === 0);
+            heroEsc.style.display = 'flex';
+        } else {
+            heroEsc.style.display = 'none';
+        }
 
         // ── TIEMPO DE TRABAJO ACTUAL ──
         const totalPendienteAhora = totReady + sum('printed', 'total');
@@ -2124,7 +2284,7 @@
                         ? `<div class="all-clear-compact">✅ Todo al día</div>`
                         : `
                             <div class="section-label imprimir">🖨️ Para imprimir</div>
-                            ${renderTipoGrid(r.ready, false)}
+                            ${renderTipoGrid(r.ready, false, c.nombre)}
                             <div class="card-impresos">
                                 <div class="section-label impresos">📬 Ya impresos</div>
                                 ${renderTipoGrid(r.printed, true)}
@@ -2171,7 +2331,7 @@
                 ? `<div class="all-clear-compact">✅ Todo al día</div>`
                 : `
                     <div class="section-label imprimir">🖨️ Para imprimir</div>
-                    ${renderTipoGrid(totalReady, false)}
+                    ${renderTipoGrid(totalReady, false, 'Total')}
                     <div class="card-impresos">
                         ${hasImpresosTotal ? `
                             <div class="section-label impresos">📬 Ya impresos</div>
@@ -2186,6 +2346,10 @@
         </div>`;
 
         document.getElementById('content').innerHTML = html;
+
+        // Animar deltas solo en datos frescos (no al pintar desde caché).
+        if (!fromCache && oldSnap) animarDeltas(oldSnap, newSnap);
+        prevReadySnapshot = newSnap;
     }
 
     // ══════════════════════════════════════════════
@@ -2289,9 +2453,19 @@
         document.body.classList.toggle('vista-simple', PREFS.vista === 'simple');
     }
 
+    function actualizarMin50Hint() {
+        const el = document.getElementById('min50Hint');
+        if (!el) return;
+        const mpp = PREFS.minPor50 / 50;
+        el.textContent = `≈ ${mpp.toFixed(2)} min por paquete · 100 paq ≈ ${fmtTiempo(Math.round(100 * mpp))}`;
+    }
+
     function sincronizarControles() {
         document.querySelectorAll('#vistaSeg button').forEach(b =>
             b.classList.toggle('active', b.dataset.vista === PREFS.vista));
+        document.getElementById('prefEscanear').checked = PREFS.verEscanear;
+        document.getElementById('prefMin50').value = PREFS.minPor50;
+        actualizarMin50Hint();
     }
 
     function inicializarAjustes() {
@@ -2302,11 +2476,32 @@
 
         document.querySelectorAll('#vistaSeg button').forEach(b => {
             b.onclick = () => {
+                const cambio = PREFS.vista !== b.dataset.vista;
                 PREFS.vista = b.dataset.vista;
                 guardarPrefs(); sincronizarControles(); aplicarPrefs();
-                if (resultadosCache) renderResultados(resultadosCache.data, true);
+                // Si paso a Detallada y la caché es liviana, traer datos completos.
+                if (cambio && PREFS.vista === 'completa' && (!resultadosCache || resultadosCache.liviano)) {
+                    cargarTodo(false);
+                } else if (resultadosCache) {
+                    renderResultados(resultadosCache.data, true);
+                }
             };
         });
+        document.getElementById('prefEscanear').onchange = e => {
+            PREFS.verEscanear = e.target.checked;
+            guardarPrefs();
+            if (resultadosCache) renderResultados(resultadosCache.data, true);
+        };
+        document.getElementById('prefMin50').onchange = e => {
+            let m = parseInt(e.target.value, 10);
+            if (!isFinite(m) || m < 5) m = 35;
+            if (m > 240) m = 240;
+            PREFS.minPor50 = m;
+            e.target.value = m;
+            guardarPrefs();
+            actualizarMin50Hint();
+            if (resultadosCache) renderResultados(resultadosCache.data, true);
+        };
     }
 
     // ── INICIO ──
