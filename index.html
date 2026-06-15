@@ -1431,11 +1431,16 @@
         const ships = new Map();
 
         // Batch: 1 request por lote (~40 ids) usando /api/shipments?ids=...
-        // En vez de 1 request por envío. Reduce muchísimo las llamadas al Worker.
+        // Los lotes se piden en paralelo (con límite de concurrencia) para que
+        // no esperen uno al otro → carga más rápida en ambos modos.
         const CHUNK = 40;
-        const totalChunks = Math.ceil(shipEntries.length / CHUNK) || 1;
-        for (let ci = 0; ci < totalChunks; ci++) {
-            const chunk = shipEntries.slice(ci * CHUNK, ci * CHUNK + CHUNK);
+        const CONCURRENCIA = 4;
+        const lotes = [];
+        for (let i = 0; i < shipEntries.length; i += CHUNK) lotes.push(shipEntries.slice(i, i + CHUNK));
+        const totalChunks = lotes.length || 1;
+        let hechos = 0;
+
+        async function procesarLote(chunk) {
             const idsParam = chunk.join(',');
             let arr;
             try {
@@ -1449,8 +1454,15 @@
             if (Array.isArray(arr)) {
                 for (const s of arr) if (s?.id) ships.set(s.id, s);
             }
-            setAccountProgress(cuenta.nombre, 0.25 + 0.7 * ((ci + 1) / totalChunks));
+            hechos++;
+            setAccountProgress(cuenta.nombre, 0.25 + 0.7 * (hechos / totalChunks));
         }
+
+        let siguiente = 0;
+        async function pool() {
+            while (siguiente < lotes.length) await procesarLote(lotes[siguiente++]);
+        }
+        await Promise.all(Array.from({ length: Math.min(CONCURRENCIA, lotes.length || 1) }, pool));
         setAccountProgress(cuenta.nombre, 0.97);
 
         const ready    = { flex: 0, flexUni: 0, colecta: 0, colectaUni: 0 };
