@@ -468,6 +468,51 @@
         }
         .card-horario.passed { opacity: 0.45; }
         .card-horario.none { opacity: 0.5; font-size: 11px; }
+        .card-horario.expandible { cursor: pointer; }
+        .hor-chevron {
+            font-size: 8px;
+            color: var(--muted);
+            transition: transform 0.25s;
+            margin-left: 1px;
+        }
+        .card-horario.expandible.open .hor-chevron { transform: rotate(180deg); }
+
+        /* ── DESGLOSE DE HORARIOS (tap en el chip) ── */
+        .horario-breakdown {
+            max-height: 0;
+            overflow: hidden;
+            transition: max-height 0.3s ease, margin 0.3s ease;
+        }
+        .horario-breakdown.open {
+            max-height: 220px;
+            margin: -2px 0 10px;
+        }
+        .hb-inner {
+            background: var(--surface-2);
+            border-radius: 10px;
+            padding: 8px 10px;
+            font-family: 'Space Mono', monospace;
+            font-size: 11px;
+        }
+        .hb-row {
+            display: flex;
+            justify-content: space-between;
+            padding: 4px 2px;
+            color: var(--muted-2);
+        }
+        .hb-row.hb-pasado { opacity: 0.4; }
+        .hb-row.hb-hoy { color: var(--text); }
+        .hb-row.hb-hoy b { color: var(--yellow); }
+        .hb-row b { font-weight: 700; }
+        .hb-row .hb-sin { color: #3a3a55; }
+        .hb-origen {
+            text-align: center;
+            font-size: 9px;
+            color: var(--muted);
+            margin-top: 4px;
+            text-transform: uppercase;
+            letter-spacing: 0.6px;
+        }
 
         @keyframes pulse-txt {
             0%, 100% { opacity: 1; }
@@ -964,7 +1009,15 @@
         .tipo-box.flash-neg { animation: boxFlashNeg 2.6s ease; }
 
         /* ── BOTÓN COMPARAR (mantener para ver lo anterior) ── */
-        .compare-btn { font-size: 15px; }
+        .compare-btn {
+            font-size: 15px;
+            -webkit-touch-callout: none;
+            -webkit-user-select: none;
+            -moz-user-select: none;
+            -ms-user-select: none;
+            user-select: none;
+            -webkit-tap-highlight-color: transparent;
+        }
         .compare-btn.disabled { opacity: 0.3; pointer-events: none; }
         .compare-btn.activo { border-color: var(--blue); color: var(--blue); box-shadow: 0 0 12px rgba(64,196,255,0.45); }
         .compare-banner {
@@ -984,9 +1037,43 @@
             pointer-events: none;
             white-space: nowrap;
         }
-        body.modo-comparar #heroCachedBadge { display: none !important; }
-        body.modo-comparar #content,
-        body.modo-comparar .hero { filter: saturate(0.55) brightness(0.9); }
+        /* ── VALOR ANTERIOR (al lado del actual, mientras se mantiene 👁) ──
+           El actual queda igual de brillante que siempre; el anterior aparece
+           chiquito y gris al costado, y se desvanece al soltar. */
+        .tipo-num { display: inline-block; }
+        .tipo-prev {
+            display: inline-block;
+            vertical-align: middle;
+            margin-left: 7px;
+            padding-left: 7px;
+            border-left: 1px solid var(--border-bright);
+            font-family: 'Space Mono', monospace;
+            font-size: 14px;
+            font-weight: 600;
+            color: var(--muted-2);
+            opacity: 0;
+            max-width: 0;
+            overflow: hidden;
+            white-space: nowrap;
+            transition: opacity 0.25s ease, max-width 0.3s ease;
+        }
+        .tipo-prev.show { opacity: 1; max-width: 90px; }
+
+        .hero-number-prev {
+            margin-left: 4px;
+            padding-left: 14px;
+            border-left: 2px solid var(--border-bright);
+            font-family: 'Space Mono', monospace;
+            font-size: 22px;
+            font-weight: 700;
+            color: var(--muted-2);
+            opacity: 0;
+            max-width: 0;
+            overflow: hidden;
+            white-space: nowrap;
+            transition: opacity 0.25s ease, max-width 0.3s ease;
+        }
+        .hero-number-prev.show { opacity: 1; max-width: 140px; }
 
         /* ── DIM al actualizar: feedback de "cargando" sin repintar lo viejo ── */
         body.actualizando #content,
@@ -1052,7 +1139,7 @@
 
     <div id="staleWarning" class="stale-warning">⚠️ Horarios desactualizados · recargá ventas</div>
 
-    <div class="compare-banner" id="compareBanner" style="display:none">👁 datos anteriores · <span id="compareBannerAge">—</span></div>
+    <div class="compare-banner" id="compareBanner" style="display:none">👁 comparando · <span id="compareBannerAge">—</span></div>
 
     <!-- Barra de acciones compacta -->
     <div class="action-row">
@@ -1646,8 +1733,6 @@
     }
 
     async function cargarHorarios() {
-        const diaSemana  = new Date().getDay();
-        const esFinDeSemana = (diaSemana === 0 || diaSemana === 6);
         const fechaHoy   = new Date().toISOString().split('T')[0];
         const cache      = leerCacheHorarios();
         const cacheDeHoy = cache?.fecha === fechaHoy;
@@ -1658,13 +1743,10 @@
             return;
         }
 
-        if (esFinDeSemana && cache) {
-            // Fin de semana + hay cache (aunque sea de otro día) → no fetchear
-            aplicarCacheHorarios(cache);
-            return;
-        }
-
-        // Día laborable sin cache de hoy → fetchear del worker
+        // Sin cache de hoy → fetchear del worker, INCLUSO en fin de semana.
+        // El script de horarios puede subir "próxima semana" un sábado o domingo
+        // (corriendo en la página de Mercado Libre) — si no refrescamos, el
+        // dashboard se queda mostrando datos de hace días sin enterarse nunca.
         await Promise.allSettled(CUENTAS.map(async c => {
             try {
                 const res = await fetch(`${AUTH_WORKER}/get-horario/${c.nombre.toLowerCase()}`);
@@ -1699,7 +1781,9 @@
         }
         if (maxAge > STALE_DAYS) {
             const dias = Math.floor(maxAge);
-            warning.textContent = `⚠️ Horarios de hace ${dias} día${dias !== 1 ? 's' : ''} · recargá /ventas/ en ambas cuentas`;
+            // El sync de horarios corre en /preferencias-de-venta/horarios-de-envio,
+            // NO en /ventas/ (esa página solo sincroniza el código de auth).
+            warning.textContent = `⚠️ Horarios de hace ${dias} día${dias !== 1 ? 's' : ''} · abrí "Mis horarios de envío" en ambas cuentas`;
             warning.style.display = 'block';
         } else {
             warning.style.display = 'none';
@@ -2134,29 +2218,72 @@
         return null;
     }
 
-    // Devuelve el patrón semanal Lun–Vie para mostrar en fines de semana.
-    // tipo 'uniforme' → todos los días tienen el mismo cutoff
-    // tipo 'variado'  → cutoffs distintos por día
-    // tipo 'sin_datos' → no hay nada guardado
-    function getResumenSemanal(cuentaNombre) {
-        const NOMBRES = ['', 'Lun', 'Mar', 'Mié', 'Jue', 'Vie'];
-        const diasLaborales = [1, 2, 3, 4, 5];
-        const porDia = {};
-        for (const dia of diasLaborales) {
-            const h = HORARIOS[cuentaNombre];
-            const hp = HORARIOS_PROXIMA[cuentaNombre];
-            const val = (h && h[dia] && h[dia].cutoff) ? h[dia]
-                      : (hp && hp[dia] && hp[dia].cutoff) ? hp[dia]
-                      : null;
-            if (val) porDia[dia] = val;
+    // ── VISTA SEMANAL UNIFICADA (para el chip + desglose al tocar) ──
+    // Decide qué fuente usar:
+    //  • Si hoy (Lun-Sáb) tiene horario en "semana" (la semana en curso, viva) → esa.
+    //  • Si no (fin de semana, o hoy sin datos) → "próxima semana" (más fresca y
+    //    relevante de cara a adelante; la semana en curso ya terminó o no aplica).
+    // headline = el día a destacar en el chip: hoy si tiene datos, sino el
+    // próximo día con datos (ej. domingo → lunes).
+    const DIAS_CORTOS_LV = ['', 'Lun', 'Mar', 'Mié', 'Jue', 'Vie', 'Sáb'];
+
+    function lunesDeSemana(d) {
+        const r = new Date(d);
+        const dow = r.getDay();
+        r.setDate(r.getDate() + (dow === 0 ? -6 : 1 - dow));
+        r.setHours(0, 0, 0, 0);
+        return r;
+    }
+    function esMismaSemana(fechaISO, otraFecha) {
+        if (!fechaISO) return false;
+        return lunesDeSemana(new Date(fechaISO)).getTime() === lunesDeSemana(otraFecha).getTime();
+    }
+
+    function getVistaSemanal(cuentaNombre) {
+        const today = new Date().getDay();
+        const ahora = new Date();
+
+        // "Semana actual" solo es confiable si el último sync de ESTE dato fue
+        // dentro de la semana en curso. Si quedó pegada de una semana anterior
+        // (ej. el sync nunca corrió esta semana), la descartamos por completo
+        // para no mostrar un horario viejo como si fuera el de hoy.
+        const metaFecha = HORARIOS_META[cuentaNombre]?.fecha;
+        const semanaVigente = metaFecha ? esMismaSemana(metaFecha, ahora) : true;
+
+        const h  = semanaVigente ? (HORARIOS[cuentaNombre] || {}) : {};
+        const hp = HORARIOS_PROXIMA[cuentaNombre] || {};
+
+        // Sáb/Dom = fin de la semana Lun-Sáb: cualquier día que quede en "semana"
+        // ya pasó, así que NUNCA hay que usarla para mirar hacia adelante — eso
+        // es lo que mostraba el miércoles viejo. Solo en día laborable (hoy
+        // todavía tiene días por venir esta semana) vale la pena buscar en "semana".
+        const esFinDeSemanaHoy = (today === 0 || today === 6);
+        const hoyEnSemana = h[today] && h[today].cutoff;
+        const quedaAlgoEstaSemana = !esFinDeSemanaHoy && [1, 2, 3, 4, 5, 6].some(d => d > today && h[d] && h[d].cutoff);
+
+        const usarSemana = hoyEnSemana || quedaAlgoEstaSemana;
+        const fuente = usarSemana ? h : hp;
+        const origen = usarSemana ? 'semana' : 'proxima';
+
+        const dias = [1, 2, 3, 4, 5, 6]
+            .map(d => ({ dia: d, nombre: DIAS_CORTOS_LV[d], cutoff: fuente[d]?.cutoff || null, action: fuente[d]?.action || null }))
+            .filter(x => x.cutoff);
+
+        if (!dias.length) return { tipo: 'sin_datos', dias: [] };
+
+        let headline = dias.find(x => x.dia === today) || null;
+        const esHoy = !!headline;
+        if (!headline) {
+            // Si la fuente es "semana" (quedan días por venir esta misma semana),
+            // el próximo día con datos. Si la fuente es "proxima", el primero de
+            // esa semana (ya no tiene sentido comparar contra el día de hoy).
+            headline = origen === 'semana' ? (dias.find(x => x.dia > today) || dias[0]) : dias[0];
         }
-        const conDatos = diasLaborales.filter(d => porDia[d]);
-        if (!conDatos.length) return { tipo: 'sin_datos' };
-        const cutoffs = [...new Set(conDatos.map(d => porDia[d].cutoff))];
-        if (cutoffs.length === 1) {
-            return { tipo: 'uniforme', cutoff: cutoffs[0] };
-        }
-        return { tipo: 'variado', dias: conDatos.map(d => ({ nombre: NOMBRES[d], cutoff: porDia[d].cutoff })) };
+
+        const cutoffsUnicos = [...new Set(dias.map(x => x.cutoff))];
+        const tipo = cutoffsUnicos.length === 1 ? 'uniforme' : 'variado';
+
+        return { tipo, dias, headline, esHoy, today, origen };
     }
 
     function extraerHorarioPrincipal(action) {
@@ -2175,37 +2302,68 @@
         return { h: Number(m[1]), m: Number(m[2]) };
     }
 
-    function renderHorario(horario, readyTotal, cuentaNombre) {
-        if (!horario) {
-            const hoy = new Date().getDay();
-            const esFinDeSemana = (hoy === 0 || hoy === 6);
-            if (esFinDeSemana && cuentaNombre) {
-                const res = getResumenSemanal(cuentaNombre);
-                if (res.tipo === 'uniforme') {
-                    return `<div class="card-horario" title="Próxima semana">📅 Lun–Vie · <b>${res.cutoff}</b></div>`;
-                }
-                if (res.tipo === 'variado') {
-                    const txt = res.dias.map(d => `${d.nombre} ${d.cutoff}`).join(' · ');
-                    return `<div class="card-horario" style="font-size:10px" title="Próxima semana">📅 ${txt}</div>`;
-                }
+    // Devuelve { chip, panel } — chip va en card-header-row, panel es un bloque
+    // colapsable aparte (se abre al tocar el chip) con el desglose día por día.
+    function renderHorario(readyTotal, cuentaNombre, uid) {
+        const vista = getVistaSemanal(cuentaNombre);
+        if (vista.tipo === 'sin_datos') {
+            return { chip: `<div class="card-horario none">💤 Sin datos</div>`, panel: '' };
+        }
+
+        const { tipo, dias, headline, esHoy, today } = vista;
+        const principal = extraerHorarioPrincipal(headline.action) || headline.cutoff;
+
+        let icon = '📅', cls = '';
+        if (esHoy) {
+            const tope = extraerHoraTope(headline.action) || (headline.cutoff ? { h: Number(headline.cutoff.split(':')[0]), m: Number(headline.cutoff.split(':')[1]) } : null);
+            let urgent = false, passed = false;
+            if (tope) {
+                const horaLimite = new Date();
+                horaLimite.setHours(tope.h, tope.m, 0, 0);
+                const diffMin = (horaLimite - Date.now()) / 60000;
+                urgent = readyTotal > 0 && diffMin > 0 && diffMin < 120;
+                passed = diffMin < 0;
             }
-            return `<div class="card-horario none">💤 Sin hoy</div>`;
+            icon = passed ? '✅' : (urgent ? '⚠️' : '🚚');
+            cls = urgent ? 'urgent' : (passed ? 'passed' : '');
         }
-        const principal = extraerHorarioPrincipal(horario.action);
-        const tope = extraerHoraTope(horario.action);
-        const now = new Date();
-        let urgent = false, passed = false;
-        if (tope) {
-            const horaLimite = new Date();
-            horaLimite.setHours(tope.h, tope.m, 0, 0);
-            const diffMin = (horaLimite - now) / 60000;
-            urgent = readyTotal > 0 && diffMin > 0 && diffMin < 120;
-            passed = diffMin < 0;
+
+        const prefijoDia = esHoy ? '' : `${headline.nombre} `;
+
+        // Mismo horario toda la semana → mostrar directo, sin necesidad de tocar.
+        if (tipo === 'uniforme') {
+            return {
+                chip: `<div class="card-horario ${cls}" title="Todos los días: ${headline.cutoff}">${icon} <b>${prefijoDia}${principal}</b></div>`,
+                panel: ''
+            };
         }
-        const icon = passed ? '✅' : (urgent ? '⚠️' : '🚚');
-        const cls = urgent ? 'urgent' : (passed ? 'passed' : '');
-        return `<div class="card-horario ${cls}" title="Cutoff: ${horario.cutoff}">${icon} <b>${principal}</b></div>`;
+
+        // Varía por día → chip resumido + tap para ver el desglose completo.
+        const chip = `<div class="card-horario expandible ${cls}" id="chip_${uid}" onclick="event.stopPropagation(); toggleHorarioBreak('${uid}')">
+            ${icon} <b>${prefijoDia}${principal}</b> <span class="hor-chevron">▾</span>
+        </div>`;
+        const panel = `
+        <div class="horario-breakdown" id="${uid}">
+            <div class="hb-inner">
+                ${dias.map(d => `
+                    <div class="hb-row ${d.dia === today ? 'hb-hoy' : ''} ${d.dia < today ? 'hb-pasado' : ''}">
+                        <span>${d.nombre}${d.dia === today ? ' (hoy)' : ''}</span>
+                        <b>${extraerHorarioPrincipal(d.action) || d.cutoff}</b>
+                    </div>`).join('')}
+                <div class="hb-origen">${vista.origen === 'proxima' ? 'próxima semana' : 'semana actual'}</div>
+            </div>
+        </div>`;
+        return { chip, panel };
     }
+
+    window.toggleHorarioBreak = function(uid) {
+        const panel = document.getElementById(uid);
+        const chip  = document.getElementById('chip_' + uid);
+        if (!panel) return;
+        const opening = !panel.classList.contains('open');
+        panel.classList.toggle('open', opening);
+        if (chip) chip.classList.toggle('open', opening);
+    };
 
     function formatAvg(paq, uni) {
         if (!paq) return null;
@@ -2354,7 +2512,8 @@
         resultados.forEach((r, i) => {
             const c = r.cuenta;
             const hasPrints = (r.ready?.total || 0) > 0;
-            const horario = getHorarioHoy(c.nombre);
+            const horUid = `horBreak_${c.nombre}_${i}`;
+            const hor = renderHorario(r.ready?.total || 0, c.nombre, horUid);
             const allClear = !r.error && (r.ready?.total || 0) === 0 && (r.printed?.total || 0) === 0 && !r.buffered;
             const hasImpresos = (r.printed?.total || 0) > 0;
             const paraImprimirCuenta = (r.ready?.flex || 0) + (r.ready?.colecta || 0);
@@ -2368,8 +2527,9 @@
                  onclick="toggleCard(this)">
                 <div class="card-header-row">
                     <div class="card-name">${c.nombre}${ventasMini}</div>
-                    ${renderHorario(horario, r.ready?.total || 0, c.nombre)}
+                    ${hor.chip}
                 </div>
+                ${hor.panel}
                 ${r.error
                     ? `<div class="error-badge">⚠️ Error al cargar</div>`
                     : allClear
@@ -2607,25 +2767,60 @@
         if (comparando || cargando || !resultadosAnterior) return;
         comparando = true;
         document.getElementById('compareBtn').classList.add('activo');
-        document.body.classList.add('modo-comparar');
         document.getElementById('compareBannerAge').textContent =
             fmtHace(Date.now() - resultadosAnterior.fetchedAt);
         document.getElementById('compareBanner').style.display = 'block';
-        const saved = prevReadySnapshot;          // no tocar la base de los deltas
-        renderResultados(resultadosAnterior.data, true);
-        prevReadySnapshot = saved;
+        mostrarValoresAnteriores();
     }
     function terminarComparacion() {
         if (!comparando) return;
         comparando = false;
         document.getElementById('compareBtn').classList.remove('activo');
-        document.body.classList.remove('modo-comparar');
         document.getElementById('compareBanner').style.display = 'none';
-        if (resultadosCache) {
-            const saved = prevReadySnapshot;
-            renderResultados(resultadosCache.data, true);
-            prevReadySnapshot = saved;
+        ocultarValoresAnteriores();
+    }
+
+    // Inserta un chip gris "antes N" al lado de cada número actual (sin tocar
+    // el actual, que sigue mostrándose normal/brillante). Reusa buildReadySnapshot
+    // (la misma función del efecto "+N volando") para no duplicar lógica.
+    function mostrarValoresAnteriores() {
+        if (!resultadosAnterior) return;
+        const snap = buildReadySnapshot(resultadosAnterior.data);
+
+        document.querySelectorAll('[data-fly]').forEach(box => {
+            const key = box.getAttribute('data-fly');
+            if (!(key in snap)) return;
+            const numEl = box.querySelector('.tipo-num');
+            if (!numEl) return;
+            let prev = numEl.nextElementSibling;
+            if (!prev || !prev.classList.contains('tipo-prev')) {
+                prev = document.createElement('span');
+                prev.className = 'tipo-prev';
+                numEl.insertAdjacentElement('afterend', prev);
+            }
+            prev.textContent = snap[key];
+            requestAnimationFrame(() => prev.classList.add('show'));
+        });
+
+        const heroAntes = (snap['Total:flex'] || 0) + (snap['Total:colecta'] || 0);
+        const heroNumEl = document.getElementById('heroNumber');
+        let heroPrev = document.getElementById('heroNumberPrev');
+        if (!heroPrev && heroNumEl) {
+            heroPrev = document.createElement('div');
+            heroPrev.id = 'heroNumberPrev';
+            heroPrev.className = 'hero-number-prev';
+            heroNumEl.insertAdjacentElement('afterend', heroPrev);
         }
+        if (heroPrev) {
+            heroPrev.textContent = heroAntes;
+            requestAnimationFrame(() => heroPrev.classList.add('show'));
+        }
+    }
+
+    function ocultarValoresAnteriores() {
+        document.querySelectorAll('.tipo-prev.show').forEach(s => s.classList.remove('show'));
+        const heroPrev = document.getElementById('heroNumberPrev');
+        if (heroPrev) heroPrev.classList.remove('show');
     }
     function wireCompareBtn() {
         const b = document.getElementById('compareBtn');
