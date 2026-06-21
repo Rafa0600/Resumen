@@ -963,6 +963,35 @@
         .tipo-box.flash-pos { animation: boxFlashPos 2.6s ease; }
         .tipo-box.flash-neg { animation: boxFlashNeg 2.6s ease; }
 
+        /* ── BOTÓN COMPARAR (mantener para ver lo anterior) ── */
+        .compare-btn { font-size: 15px; }
+        .compare-btn.disabled { opacity: 0.3; pointer-events: none; }
+        .compare-btn.activo { border-color: var(--blue); color: var(--blue); box-shadow: 0 0 12px rgba(64,196,255,0.45); }
+        .compare-banner {
+            position: fixed;
+            top: 54px; left: 50%;
+            transform: translateX(-50%);
+            z-index: 250;
+            background: rgba(64,196,255,0.16);
+            border: 1px solid rgba(64,196,255,0.45);
+            color: #aee4ff;
+            border-radius: 20px;
+            padding: 6px 15px;
+            font-family: 'Space Mono', monospace;
+            font-size: 12px;
+            font-weight: 700;
+            box-shadow: 0 6px 22px rgba(0,0,0,0.45);
+            pointer-events: none;
+            white-space: nowrap;
+        }
+        body.modo-comparar #heroCachedBadge { display: none !important; }
+        body.modo-comparar #content,
+        body.modo-comparar .hero { filter: saturate(0.55) brightness(0.9); }
+
+        /* ── DIM al actualizar: feedback de "cargando" sin repintar lo viejo ── */
+        body.actualizando #content,
+        body.actualizando .hero { opacity: 0.6; transition: opacity 0.18s; }
+
         /* ── VISTA SIMPLE / SIN PROYECCIÓN (ocultar secciones) ── */
         /* Simple = solo cantidad de paquetes. Sin unidades totales, sin promedio
            u/paq, sin las "X u" de abajo ni métricas/proyección. Mantiene el tap
@@ -1023,6 +1052,8 @@
 
     <div id="staleWarning" class="stale-warning">⚠️ Horarios desactualizados · recargá ventas</div>
 
+    <div class="compare-banner" id="compareBanner" style="display:none">👁 datos anteriores · <span id="compareBannerAge">—</span></div>
+
     <!-- Barra de acciones compacta -->
     <div class="action-row">
         <button class="proy-toggle" id="proyToggle" onclick="toggleProy()" style="display:none">
@@ -1034,6 +1065,7 @@
             <span class="pq-val" id="proyQuickVal">—</span>
             <span class="pq-lbl">al corte</span>
         </div>
+        <button class="reload-btn compare-btn disabled" id="compareBtn" title="Mantené presionado para ver lo anterior" style="touch-action:none">👁</button>
         <button class="reload-btn" id="reloadBtn" onclick="cargarTodo(false)">
             <span id="reloadIcon">⟳</span>
         </button>
@@ -1174,7 +1206,9 @@
 
     const TOKEN_LS_KEY = 'ml_token_cache_v1';
     let   resultadosCache = null;
+    let   resultadosAnterior = null;   // datos del refresco previo (para comparar)
     let   cargando = false;
+    let   comparando = false;
 
     // ══════════════════════════════════════════════
     //  PREFERENCIAS (persistidas en localStorage)
@@ -1203,6 +1237,23 @@
     function guardarPrefs() { try { localStorage.setItem(PREFS_KEY, JSON.stringify(PREFS)); } catch (e) {} }
     // Siempre se cargan ambas cuentas.
     function cuentasActivas() { return CUENTAS; }
+
+    // ── CACHE de logistic_type por envío (flex/colecta NUNCA cambia) ──
+    // Permite saltar el fetch de envíos ya conocidos en refrescos siguientes
+    // → mucho más rápido, sin perder frescura (los conteos vienen de la búsqueda).
+    const LT_KEY = 'ml_logtype_v1';
+    let logTypeCache = (() => { try { return JSON.parse(localStorage.getItem(LT_KEY)) || {}; } catch (e) { return {}; } })();
+    let _ltDirty = false;
+    function ltGet(sid) { return logTypeCache[sid]; }
+    function ltSet(sid, type) { if (type && logTypeCache[sid] !== type) { logTypeCache[sid] = type; _ltDirty = true; } }
+    function ltFlush() {
+        if (!_ltDirty) return;
+        try {
+            if (Object.keys(logTypeCache).length > 6000) logTypeCache = {}; // prune simple
+            localStorage.setItem(LT_KEY, JSON.stringify(logTypeCache));
+        } catch (e) {}
+        _ltDirty = false;
+    }
 
     // ══════════════════════════════════════════════
     //  CACHE PERSISTENTE DE RESULTADOS (carga instantánea)
@@ -1361,8 +1412,11 @@
         }
 
         async function fetchShippedRecientes() {
+            // Solo se usan los despachados de las últimas ~24h (velocidad + "por
+            // escanear" reciente), así que con 2 días alcanza. Antes traía 7 días /
+            // 500 órdenes → muchas páginas y shipments al pedo. Esto acelera.
             const items = [];
-            const desde = new Date(); desde.setDate(desde.getDate() - 7);
+            const desde = new Date(); desde.setDate(desde.getDate() - 2);
             const desdeISO = encodeURIComponent(desde.toISOString().split('.')[0] + '.000-00:00');
             const hasta = new Date(); hasta.setDate(hasta.getDate() + 1);
             const hastaISO = encodeURIComponent(hasta.toISOString().split('.')[0] + '.000-00:00');
@@ -1387,7 +1441,7 @@
                 }
                 if (orders.length < 50) break;
                 offset += 50;
-                if (offset >= 500) break;
+                if (offset >= 200) break;
             }
             return items;
         }
@@ -1426,13 +1480,21 @@
 
         setAccountProgress(cuenta.nombre, 0.25);
 
-        const allSidsSet = new Set([...allShipMap.keys(), ...shippedShipMap.keys()]);
-        const shipEntries = [...allSidsSet];
         const ships = new Map();
 
-        // Batch: 1 request por lote (~40 ids) usando /api/shipments?ids=...
-        // Los lotes se piden en paralelo (con límite de concurrencia) para que
-        // no esperen uno al otro → carga más rápida en ambos modos.
+        // Solo pedimos los envíos que hagan falta:
+        //  • ready/printed/buffered: solo si NO sabemos su tipo (flex/colecta cacheado).
+        //  • despachados (shipped): siempre, porque el estado "por escanear" cambia.
+        // En refrescos seguidos casi todos los envíos ya están cacheados → vuela.
+        // Despachados: SIEMPRE se piden frescos (su status cambia al escanear,
+        // eso es lo que detecta "por escanear"). Ready/printed/buffered: solo si
+        // no sabemos el tipo flex/colecta (ese dato es inmutable).
+        const needFetch = new Set();
+        for (const sid of allShipMap.keys()) if (ltGet(sid) === undefined) needFetch.add(sid);
+        for (const sid of shippedShipMap.keys()) needFetch.add(sid);
+        const shipEntries = [...needFetch];
+
+        // Batch: 1 request por lote (~40 ids), hasta 4 lotes en paralelo.
         const CHUNK = 40;
         const CONCURRENCIA = 4;
         const lotes = [];
@@ -1452,7 +1514,7 @@
                 catch (e2) { arr = []; }
             }
             if (Array.isArray(arr)) {
-                for (const s of arr) if (s?.id) ships.set(s.id, s);
+                for (const s of arr) if (s?.id) { ships.set(s.id, s); ltSet(s.id, s.logistic_type); }
             }
             hechos++;
             setAccountProgress(cuenta.nombre, 0.25 + 0.7 * (hechos / totalChunks));
@@ -1463,6 +1525,7 @@
             while (siguiente < lotes.length) await procesarLote(lotes[siguiente++]);
         }
         await Promise.all(Array.from({ length: Math.min(CONCURRENCIA, lotes.length || 1) }, pool));
+        ltFlush();
         setAccountProgress(cuenta.nombre, 0.97);
 
         const ready    = { flex: 0, flexUni: 0, colecta: 0, colectaUni: 0 };
@@ -1474,38 +1537,41 @@
         const todayTs = Date.now() - 24 * 60 * 60 * 1000;
         const flexDatesAll = [], colectaDatesAll = [];
 
-        ships.forEach(s => {
-            const isFlex = s.logistic_type === 'self_service';
+        // Para imprimir / impresos / buffered — tipo flex/colecta desde el cache.
+        allShipMap.forEach((meta, sid) => {
+            const t = ltGet(sid);
+            if (t === undefined) return; // no se pudo resolver el tipo → omitir
+            const isFlex = t === 'self_service';
+            const q = meta.qty;
+            const orderTs = meta.date ? new Date(meta.date).getTime() : 0;
+            const isToday = orderTs >= todayTs;
 
-            const meta = allShipMap.get(s.id);
-            if (meta) {
-                const q = meta.qty;
-                const orderTs = meta.date ? new Date(meta.date).getTime() : 0;
-                const isToday = orderTs >= todayTs;
-
-                if (meta.substatus === 'ready_to_print') {
-                    if (isFlex) {
-                        ready.flex++; ready.flexUni += q;
-                        if (isToday && meta.date) flexDatesAll.push(meta.date);
-                    } else {
-                        ready.colecta++; ready.colectaUni += q;
-                        if (isToday && meta.date) colectaDatesAll.push(meta.date);
-                    }
-                } else if (meta.substatus === 'printed' || meta.substatus === 'ready_for_pickup') {
-                    if (isFlex) {
-                        printed.flex++; printed.flexUni += q;
-                        if (isToday && meta.date) flexDatesAll.push(meta.date);
-                    } else {
-                        printed.colecta++; printed.colectaUni += q;
-                        if (isToday && meta.date) colectaDatesAll.push(meta.date);
-                    }
-                } else if (meta.substatus === 'buffered') {
-                    buffered++; bufferedUni += q;
+            if (meta.substatus === 'ready_to_print') {
+                if (isFlex) {
+                    ready.flex++; ready.flexUni += q;
+                    if (isToday && meta.date) flexDatesAll.push(meta.date);
+                } else {
+                    ready.colecta++; ready.colectaUni += q;
+                    if (isToday && meta.date) colectaDatesAll.push(meta.date);
                 }
+            } else if (meta.substatus === 'printed' || meta.substatus === 'ready_for_pickup') {
+                if (isFlex) {
+                    printed.flex++; printed.flexUni += q;
+                    if (isToday && meta.date) flexDatesAll.push(meta.date);
+                } else {
+                    printed.colecta++; printed.colectaUni += q;
+                    if (isToday && meta.date) colectaDatesAll.push(meta.date);
+                }
+            } else if (meta.substatus === 'buffered') {
+                buffered++; bufferedUni += q;
             }
+        });
 
-            if (shippedShipMap.has(s.id)) {
-                const sm = shippedShipMap.get(s.id);
+        // Despachados recientes — por escanear (estado fresco) + muestra de velocidad.
+        shippedShipMap.forEach((sm, sid) => {
+            const isFlex = ltGet(sid) === 'self_service';
+            const s = ships.get(sid);
+            if (s) {
                 const sentDate = s.status_history?.date_shipped;
                 const delivered = s.status_history?.date_delivered;
                 if (!sentDate && !delivered && s.status === 'shipped') {
@@ -1513,12 +1579,11 @@
                     if (isFlex) { pendEsc.flex++; pendEsc.flexUni += q; }
                     else        { pendEsc.colecta++; pendEsc.colectaUni += q; }
                 }
-                // Incluir órdenes ya despachadas de hoy para mejor muestra de velocidad
-                const orderTs = sm.date ? new Date(sm.date).getTime() : 0;
-                if (orderTs >= todayTs && sm.date) {
-                    if (isFlex) flexDatesAll.push(sm.date);
-                    else colectaDatesAll.push(sm.date);
-                }
+            }
+            const orderTs = sm.date ? new Date(sm.date).getTime() : 0;
+            if (orderTs >= todayTs && sm.date) {
+                if (isFlex) flexDatesAll.push(sm.date);
+                else colectaDatesAll.push(sm.date);
             }
         });
 
@@ -2000,9 +2065,12 @@
 
         resetProgreso();
 
-        if (resultadosCache) {
-            renderResultados(resultadosCache.data, true);
-        } else {
+        // No repintar lo viejo al refrescar: dejamos la vista actual quieta (con la
+        // barra de progreso arriba) y pintamos UNA sola vez cuando llegan los datos
+        // nuevos. Evita el "viejo → nuevo" que marea. Solo mostramos el loader si
+        // todavía no hay nada en pantalla (primer arranque sin caché).
+        const hayVistaPrevia = !!document.querySelector('#content .cuenta-card');
+        if (!hayVistaPrevia) {
             document.getElementById('hero').style.display = 'none';
             document.getElementById('content').innerHTML = `
                 <div class="loading-state">
@@ -2010,6 +2078,10 @@
                     <div class="progress-pct" id="progressPct">0%</div>
                     <div class="progress-text" id="progress">Cargando despachos…</div>
                 </div>`;
+        } else {
+            // Atenuar la vista actual para que se note que está actualizando
+            // (sin repintar lo viejo).
+            document.body.classList.add('actualizando');
         }
 
         setStatus('loading');
@@ -2027,11 +2099,15 @@
         });
         const hayError = resultados.some(r => r.error);
 
+        // Guardar lo que estaba como "anterior" antes de pisar con lo nuevo.
+        if (resultadosCache) resultadosAnterior = resultadosCache;
         resultadosCache = { data: resultados, fetchedAt: Date.now(), liviano };
         guardarResultadosCache(resultados, resultadosCache.fetchedAt, liviano);
+        document.body.classList.remove('actualizando');
         renderResultados(resultados, false);
         checkStaleness();
         finProgreso();
+        actualizarCompareBtn();
 
         btn.disabled = false;
         document.getElementById('reloadIcon').style.animation = '';
@@ -2216,6 +2292,10 @@
         const sum = (key, sub) => resultados.reduce((a, r) => a + (r[key]?.[sub] || 0), 0);
         const oldSnap = prevReadySnapshot;
         const newSnap = buildReadySnapshot(resultados);
+        // Solo animar la entrada (fade-up) en el primer pintado; en refrescos las
+        // tarjetas se actualizan en el lugar (sin re-animar) para que no maree.
+        const esPrimerPaint = !document.querySelector('#content .cuenta-card');
+        const animCls = esPrimerPaint ? 'animate-in' : '';
 
         const totReady  = sum('ready', 'total');
         const totReadyU = sum('ready', 'totalUni');
@@ -2283,7 +2363,7 @@
                 : '';
 
             html += `
-            <div class="cuenta-card ${c.css} animate-in ${hasPrints ? 'has-prints' : ''}"
+            <div class="cuenta-card ${c.css} ${animCls} ${hasPrints ? 'has-prints' : ''}"
                  style="animation-delay:${i * 0.08}s"
                  onclick="toggleCard(this)">
                 <div class="card-header-row">
@@ -2331,7 +2411,7 @@
         const totalExpandible = hasImpresosTotal || hasEscanearTotal;
 
         html += `
-        <div class="cuenta-card total animate-in${totalExpandible ? ' total-expandible' : ''}" style="animation-delay:${resultados.length * 0.08}s"
+        <div class="cuenta-card total ${animCls}${totalExpandible ? ' total-expandible' : ''}" style="animation-delay:${resultados.length * 0.08}s"
              ${totalExpandible ? 'onclick="toggleCard(this)"' : ''}>
             <div class="card-header-row">
                 <div class="card-name">Total${totalVentasParaImprimirGlobal ? `<span class="ventas-mini">· <b>${totalVentasParaImprimirGlobal}</b> p/imp</span>` : ''}</div>
@@ -2516,8 +2596,48 @@
         };
     }
 
+    // ══════════════════════════════════════════════
+    //  COMPARAR — mantener presionado 👁 → datos del refresco anterior
+    // ══════════════════════════════════════════════
+    function actualizarCompareBtn() {
+        const b = document.getElementById('compareBtn');
+        if (b) b.classList.toggle('disabled', !resultadosAnterior);
+    }
+    function iniciarComparacion() {
+        if (comparando || cargando || !resultadosAnterior) return;
+        comparando = true;
+        document.getElementById('compareBtn').classList.add('activo');
+        document.body.classList.add('modo-comparar');
+        document.getElementById('compareBannerAge').textContent =
+            fmtHace(Date.now() - resultadosAnterior.fetchedAt);
+        document.getElementById('compareBanner').style.display = 'block';
+        const saved = prevReadySnapshot;          // no tocar la base de los deltas
+        renderResultados(resultadosAnterior.data, true);
+        prevReadySnapshot = saved;
+    }
+    function terminarComparacion() {
+        if (!comparando) return;
+        comparando = false;
+        document.getElementById('compareBtn').classList.remove('activo');
+        document.body.classList.remove('modo-comparar');
+        document.getElementById('compareBanner').style.display = 'none';
+        if (resultadosCache) {
+            const saved = prevReadySnapshot;
+            renderResultados(resultadosCache.data, true);
+            prevReadySnapshot = saved;
+        }
+    }
+    function wireCompareBtn() {
+        const b = document.getElementById('compareBtn');
+        b.addEventListener('pointerdown', e => { e.preventDefault(); iniciarComparacion(); });
+        ['pointerup', 'pointerleave', 'pointercancel'].forEach(ev =>
+            b.addEventListener(ev, terminarComparacion));
+        b.addEventListener('contextmenu', e => e.preventDefault());
+    }
+
     // ── INICIO ──
     inicializarAjustes();
+    wireCompareBtn();
     aplicarPrefs();
     resultadosCache = leerResultadosCache();
     if (resultadosCache) {
