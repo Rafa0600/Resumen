@@ -944,6 +944,90 @@
             line-height: 1.4;
         }
 
+        /* ── LISTADO "FLEX A ESCANEAR" ── */
+        .esc-grupo-title {
+            font-size: 11px;
+            font-weight: 700;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            margin: 14px 0 6px;
+            padding-bottom: 4px;
+            border-bottom: 1px solid var(--border);
+        }
+        .esc-grupo-title.mikra { color: var(--purple); }
+        .esc-grupo-title.chaya { color: var(--orange); }
+        .esc-item { border-bottom: 1px solid var(--border); }
+        .esc-item:last-child { border-bottom: none; }
+        .esc-row {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 10px;
+            padding: 9px 4px;
+            cursor: pointer;
+            -webkit-tap-highlight-color: transparent;
+        }
+        .esc-zona {
+            font-size: 12px;
+            color: var(--muted-2);
+            flex: 1;
+            min-width: 0;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+            display: flex;
+            align-items: center;
+            gap: 4px;
+        }
+        .esc-chevron {
+            font-size: 8px;
+            color: var(--muted);
+            transition: transform 0.25s;
+            flex-shrink: 0;
+        }
+        .esc-row.open .esc-chevron { transform: rotate(180deg); }
+        .esc-detalle {
+            max-height: 0;
+            overflow: hidden;
+            transition: max-height 0.3s ease;
+        }
+        .esc-detalle.open { max-height: 180px; }
+        .esc-detalle-inner {
+            padding: 0 4px 10px 4px;
+            font-family: 'Space Mono', monospace;
+            font-size: 11px;
+            color: var(--muted-2);
+            line-height: 1.5;
+        }
+        .esc-prod-item b { color: var(--yellow); }
+        .esc-prod-empty { color: var(--muted); font-style: italic; }
+        .esc-uni {
+            font-family: 'Space Mono', monospace;
+            font-size: 10px;
+            color: var(--muted);
+            flex-shrink: 0;
+        }
+        .esc-orden {
+            font-family: 'Space Mono', monospace;
+            font-size: 12px;
+            font-weight: 700;
+            color: var(--blue);
+            text-decoration: none;
+            background: rgba(64,196,255,0.1);
+            border: 1px solid rgba(64,196,255,0.3);
+            border-radius: 8px;
+            padding: 5px 9px;
+            flex-shrink: 0;
+            white-space: nowrap;
+        }
+        .esc-orden:active { background: rgba(64,196,255,0.25); }
+        .esc-empty {
+            text-align: center;
+            color: var(--muted);
+            font-size: 13px;
+            padding: 24px 0;
+        }
+
         /* ── CHIP "FLEX A ESCANEAR" (esquina del hero) ── */
         .hero { position: relative; }
         .hero-escanear {
@@ -959,6 +1043,7 @@
             font-family: 'Space Mono', monospace;
             line-height: 1;
             max-width: 46%;
+            cursor: pointer;
         }
         .hero-escanear b {
             color: var(--blue);
@@ -1106,7 +1191,7 @@
     </div>
 
     <div class="hero" id="hero">
-        <div class="hero-escanear" id="heroEscanear" style="display:none" title="Flex impresos sin escanear (ambas cuentas)">
+        <div class="hero-escanear" id="heroEscanear" style="display:none" title="Tocá para ver el listado" onclick="event.stopPropagation(); abrirModalEscanear()">
             📡 <b id="heroEscanearNum">0</b>
             <span class="he-lbl">flex<br>a escanear</span>
         </div>
@@ -1252,6 +1337,14 @@
             </div>
 
             <div class="set-hint">La proyección detecta sola los feriados de Argentina y salta los fines de semana: calcula el próximo corte real (ej. domingo → martes si el lunes es feriado).</div>
+        </div>
+    </div>
+
+    <!-- ── MODAL FLEX A ESCANEAR ── -->
+    <div class="modal-overlay" id="escanearModal">
+        <div class="modal-sheet">
+            <div class="modal-title">📡 Flex a escanear <button class="modal-close" id="escanearClose">×</button></div>
+            <div id="escanearList"></div>
         </div>
     </div>
 
@@ -1463,6 +1556,77 @@
     function invalidarToken(proxy) { tokenCache.delete(proxy); }
 
     // ══════════════════════════════════════════════
+    //  ZONAS (mismo criterio que mikra-flex-dashboard.html, para el
+    //  listado de "Flex a escanear")
+    // ══════════════════════════════════════════════
+    const BARRIOS_CABA_SET = new Set([
+        'agronomia', 'almagro', 'balvanera', 'barracas', 'belgrano', 'boedo',
+        'caballito', 'chacarita', 'coghlan', 'colegiales', 'constitucion',
+        'flores', 'floresta', 'la boca', 'liniers', 'mataderos',
+        'monte castro', 'monserrat', 'nueva pompeya', 'nunez', 'palermo',
+        'parque avellaneda', 'parque chacabuco', 'parque patricios', 'paternal',
+        'recoleta', 'retiro', 'saavedra', 'san cristobal', 'san nicolas',
+        'san telmo', 'velez sarsfield', 'versailles', 'villa crespo',
+        'villa devoto', 'villa general mitre', 'villa lugano', 'villa luro',
+        'villa ortuzar', 'villa pueyrredon', 'villa real',
+        'villa santa rita', 'villa urquiza'
+    ]);
+
+    function normalizar(texto) {
+        return (texto || '').toLowerCase().trim()
+            .replace(/á/g, 'a').replace(/é/g, 'e')
+            .replace(/í/g, 'i').replace(/ó/g, 'o')
+            .replace(/ú/g, 'u').replace(/ñ/g, 'n');
+    }
+    function esBarrioCABA(nombre) { return BARRIOS_CABA_SET.has(normalizar(nombre)); }
+    function esCABAPorCP(zipCode) {
+        if (!zipCode) return false;
+        const cp = parseInt(String(zipCode).replace(/\D/g, ''), 10);
+        return !isNaN(cp) && cp >= 1000 && cp <= 1499;
+    }
+
+    function getZonaDetallada(barrio, ciudad, zipCode) {
+        const barrioNorm = (barrio || '').trim();
+        const ciudadNorm = (ciudad || '').trim();
+
+        const esCABAporNombre = ciudadNorm === 'CABA' || barrioNorm === 'CABA' || ciudadNorm === 'Buenos aires'
+            || ciudadNorm === 'Capital Federal' || esBarrioCABA(barrioNorm) || esBarrioCABA(ciudadNorm);
+        const esCABAporCP = esCABAPorCP(zipCode);
+
+        if (esCABAporNombre || esCABAporCP) {
+            if (barrioNorm && barrioNorm !== 'CABA' && barrioNorm !== 'Buenos aires' && barrioNorm !== 'Capital Federal') {
+                return `CABA - ${barrioNorm}`;
+            }
+            if (ciudadNorm && ciudadNorm !== 'CABA' && ciudadNorm !== 'Buenos aires' && ciudadNorm !== 'Capital Federal' && esBarrioCABA(ciudadNorm)) {
+                return `CABA - ${ciudadNorm}`;
+            }
+            return 'CABA - Otros';
+        }
+
+        const zonaNorte = ['San Isidro', 'Vicente López', 'San Fernando', 'Tigre', 'Olivos', 'Martínez', 'Acassuso', 'Beccar', 'La Lucila', 'Villa Adelina'];
+        if (zonaNorte.some(z => normalizar(z) === normalizar(ciudadNorm) || normalizar(z) === normalizar(barrioNorm))) {
+            return `GBA Norte - ${ciudadNorm || barrioNorm}`;
+        }
+
+        const zonaOeste = ['La Reja', 'Morón', 'Hurlingham', 'Ituzaingó', 'Ramos Mejía', 'Ciudadela', 'Santos Lugares', 'Villa Luzuriaga', 'Luzuriaga', 'Ingeniero Allan', 'Castelar', 'El Palomar', 'Ciudad Jardin Del Palomar', 'Caseros', 'San Justo', 'Villa Sarmiento'];
+        if (zonaOeste.some(z => normalizar(z) === normalizar(ciudadNorm) || normalizar(z) === normalizar(barrioNorm))) {
+            return `GBA Oeste - ${ciudadNorm || barrioNorm}`;
+        }
+
+        const zonaSur = ['Lomas de Zamora', 'Banfield', 'Lanús', 'Avellaneda', 'Quilmes', 'Sarandi', 'Sarandí', 'Tristán Suárez', 'Carlos Spegazzini', 'Bernal Oeste', 'Temperley', 'Remedios De Escalada', 'Valentin Alsina', 'Berazategui', 'Florencio Varela', 'Wilde'];
+        if (zonaSur.some(z => normalizar(z) === normalizar(ciudadNorm) || normalizar(z) === normalizar(barrioNorm))) {
+            return `GBA Sur - ${ciudadNorm || barrioNorm}`;
+        }
+
+        const interior = ['Zárate', 'Campana', 'La Plata', 'Mar del Plata', 'Bahía Blanca'];
+        if (interior.some(z => normalizar(z) === normalizar(ciudadNorm) || normalizar(z) === normalizar(barrioNorm))) {
+            return `Buenos Aires - ${ciudadNorm || barrioNorm}`;
+        }
+
+        return ciudadNorm || barrioNorm || 'Otras zonas';
+    }
+
+    // ══════════════════════════════════════════════
     //  CARGA POR CUENTA
     // ══════════════════════════════════════════════
     async function cargarCuenta(cuenta, liviano = false) {
@@ -1488,8 +1652,12 @@
                     const sid = o.shipping?.id;
                     if (!sid) continue;
                     const qty = (o.order_items || []).reduce((a, it) => a + (it.quantity || 0), 0);
-                    // Capturar fecha de la orden para cálculo de velocidad
-                    items.push({ sid, substatus, qty, date: o.date_created || null });
+                    const productos = (o.order_items || []).map(it => ({
+                        titulo: it.item?.title || 'Producto',
+                        cantidad: it.quantity || 1
+                    }));
+                    // Capturar fecha de la orden para cálculo de velocidad + orderId/productos para el listado de escaneo
+                    items.push({ sid, substatus, qty, date: o.date_created || null, orderId: o.id || null, productos });
                 }
                 if (orders.length < 50) break;
                 offset += 50;
@@ -1549,9 +1717,10 @@
         for (const it of [...readyItems, ...printedItems, ...pickupItems, ...bufferedItems]) {
             const existing = allShipMap.get(it.sid);
             if (!existing) {
-                allShipMap.set(it.sid, { substatus: it.substatus, qty: it.qty, date: it.date });
+                allShipMap.set(it.sid, { substatus: it.substatus, qty: it.qty, date: it.date, orderId: it.orderId, productos: it.productos || [] });
             } else {
                 existing.qty += it.qty;
+                existing.productos = (existing.productos || []).concat(it.productos || []);
                 if (PRIORIDAD[it.substatus] > PRIORIDAD[existing.substatus]) {
                     existing.substatus = it.substatus;
                 }
@@ -1576,8 +1745,15 @@
         // Despachados: SIEMPRE se piden frescos (su status cambia al escanear,
         // eso es lo que detecta "por escanear"). Ready/printed/buffered: solo si
         // no sabemos el tipo flex/colecta (ese dato es inmutable).
+        // Los "printed/ready_for_pickup" siempre se piden completos (aunque el
+        // tipo ya esté cacheado): hace falta receiver_address para armar la
+        // zona del listado "Flex a escanear".
         const needFetch = new Set();
-        for (const sid of allShipMap.keys()) if (ltGet(sid) === undefined) needFetch.add(sid);
+        for (const sid of allShipMap.keys()) {
+            const meta = allShipMap.get(sid);
+            const esCandidatoEscaneo = meta.substatus === 'printed' || meta.substatus === 'ready_for_pickup';
+            if (ltGet(sid) === undefined || esCandidatoEscaneo) needFetch.add(sid);
+        }
         for (const sid of shippedShipMap.keys()) needFetch.add(sid);
         const shipEntries = [...needFetch];
 
@@ -1623,6 +1799,7 @@
         // Últimas 24h (no desde medianoche, para que funcione bien a las 00:xx)
         const todayTs = Date.now() - 24 * 60 * 60 * 1000;
         const flexDatesAll = [], colectaDatesAll = [];
+        const escanearDetalle = []; // flex impresos sin escanear: {orderId, zona, qty}
 
         // Para imprimir / impresos / buffered — tipo flex/colecta desde el cache.
         allShipMap.forEach((meta, sid) => {
@@ -1645,6 +1822,13 @@
                 if (isFlex) {
                     printed.flex++; printed.flexUni += q;
                     if (isToday && meta.date) flexDatesAll.push(meta.date);
+                    const s = ships.get(sid);
+                    const zona = getZonaDetallada(
+                        s?.receiver_address?.neighborhood?.name || '',
+                        s?.receiver_address?.city?.name || '',
+                        s?.receiver_address?.zip_code || ''
+                    );
+                    escanearDetalle.push({ orderId: meta.orderId, zona, qty: q, productos: meta.productos || [] });
                 } else {
                     printed.colecta++; printed.colectaUni += q;
                     if (isToday && meta.date) colectaDatesAll.push(meta.date);
@@ -1681,7 +1865,7 @@
         pendEsc.total    = pendEsc.flex + pendEsc.colecta;
         pendEsc.totalUni = pendEsc.flexUni + pendEsc.colectaUni;
 
-        return { cuenta, ready, printed, pendEsc, buffered, bufferedUni, flexDatesAll, colectaDatesAll };
+        return { cuenta, ready, printed, pendEsc, buffered, bufferedUni, flexDatesAll, colectaDatesAll, escanearDetalle };
     }
 
     // ══════════════════════════════════════════════
@@ -2179,7 +2363,7 @@
         const resultados = settled.map((r, i) => {
             if (r.status === 'fulfilled') return r.value;
             console.error(`Error ${activas[i].nombre}:`, r.reason);
-            return { cuenta: activas[i], ready: empty(), printed: empty(), pendEsc: empty(), buffered: 0, bufferedUni: 0, flexDatesAll: [], colectaDatesAll: [], error: true };
+            return { cuenta: activas[i], ready: empty(), printed: empty(), pendEsc: empty(), buffered: 0, bufferedUni: 0, flexDatesAll: [], colectaDatesAll: [], escanearDetalle: [], error: true };
         });
         const hayError = resultados.some(r => r.error);
 
@@ -2720,6 +2904,67 @@
         actualizarMin50Hint();
     }
 
+    // ══════════════════════════════════════════════
+    //  MODAL "FLEX A ESCANEAR" — listado con zona y link a la venta
+    // ══════════════════════════════════════════════
+    function inicializarModalEscanear() {
+        const modal = document.getElementById('escanearModal');
+        document.getElementById('escanearClose').onclick = () => modal.classList.remove('open');
+        modal.onclick = e => { if (e.target === modal) modal.classList.remove('open'); };
+    }
+
+    function escHtml(s) {
+        return String(s == null ? '' : s).replace(/[&<>"']/g, c =>
+            ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+    }
+
+    window.toggleEscRow = function(rowEl) {
+        const detalle = rowEl.nextElementSibling;
+        if (!detalle || !detalle.classList.contains('esc-detalle')) return;
+        const abriendo = !detalle.classList.contains('open');
+        detalle.classList.toggle('open', abriendo);
+        rowEl.classList.toggle('open', abriendo);
+    };
+
+    window.abrirModalEscanear = function() {
+        if (!resultadosCache) return;
+        const modal = document.getElementById('escanearModal');
+        const cont = document.getElementById('escanearList');
+
+        let html = '';
+        let totalItems = 0;
+        resultadosCache.data.forEach(r => {
+            const detalle = r.escanearDetalle || [];
+            if (!detalle.length) return;
+            totalItems += detalle.length;
+            const ordenado = detalle.slice().sort((a, b) => (a.zona || '').localeCompare(b.zona || ''));
+            html += `<div class="esc-grupo-title ${r.cuenta.css}">${r.cuenta.nombre} · ${detalle.length}</div>`;
+            ordenado.forEach(it => {
+                const href = it.orderId
+                    ? `https://www.mercadolibre.com.ar/ventas/${it.orderId}/detalle`
+                    : null;
+                const productos = it.productos || [];
+                const productosHtml = productos.length
+                    ? productos.map(p => `<div class="esc-prod-item">• ${escHtml(p.titulo)}${p.cantidad > 1 ? ` <b>×${p.cantidad}</b>` : ''}</div>`).join('')
+                    : `<div class="esc-prod-item esc-prod-empty">sin detalle de producto</div>`;
+                html += `
+                <div class="esc-item">
+                    <div class="esc-row" onclick="toggleEscRow(this)">
+                        <span class="esc-zona">${it.zona || 'Sin zona'} <span class="esc-chevron">▾</span></span>
+                        <span class="esc-uni">${it.qty} u</span>
+                        ${href
+                            ? `<a class="esc-orden" href="${href}" target="_blank" rel="noopener" onclick="event.stopPropagation()">#${it.orderId}</a>`
+                            : `<span class="esc-orden" style="opacity:.4">sin ID</span>`}
+                    </div>
+                    <div class="esc-detalle"><div class="esc-detalle-inner">${productosHtml}</div></div>
+                </div>`;
+            });
+        });
+
+        cont.innerHTML = totalItems ? html : `<div class="esc-empty">No hay paquetes pendientes de escanear 🎉</div>`;
+        modal.classList.add('open');
+    };
+
     function inicializarAjustes() {
         const modal = document.getElementById('settingsModal');
         document.getElementById('gearBtn').onclick = () => { sincronizarControles(); modal.classList.add('open'); };
@@ -2832,6 +3077,7 @@
 
     // ── INICIO ──
     inicializarAjustes();
+    inicializarModalEscanear();
     wireCompareBtn();
     aplicarPrefs();
     resultadosCache = leerResultadosCache();
