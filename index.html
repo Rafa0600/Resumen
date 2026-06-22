@@ -2418,9 +2418,17 @@
         r.setHours(0, 0, 0, 0);
         return r;
     }
+    // 'YYYY-MM-DD' con new Date(string) se interpreta como medianoche UTC, que
+    // en Argentina (UTC-3) cae en el día anterior — eso hacía que el dato de
+    // HOY se tratara como "de otra semana" y se descartara por error. Parsear
+    // los componentes a mano fuerza la fecha en horario LOCAL.
+    function parseFechaLocal(fechaISO) {
+        const [y, m, d] = fechaISO.split('-').map(Number);
+        return new Date(y, m - 1, d);
+    }
     function esMismaSemana(fechaISO, otraFecha) {
         if (!fechaISO) return false;
-        return lunesDeSemana(new Date(fechaISO)).getTime() === lunesDeSemana(otraFecha).getTime();
+        return lunesDeSemana(parseFechaLocal(fechaISO)).getTime() === lunesDeSemana(otraFecha).getTime();
     }
 
     function getVistaSemanal(cuentaNombre) {
@@ -2475,8 +2483,12 @@
         const rango = action.match(/(\d{1,2}:\d{2})\s*[-–]\s*(\d{1,2}:\d{2})/);
         if (rango) return `${rango[1]}-${rango[2]}`;
         const hora = action.match(/(\d{1,2}:\d{2})/);
-        if (hora) return hora[1];
-        return action;
+        if (!hora) return action;
+        // Cuentas con horario fijo de despacho propio (sin ventana de
+        // "pasan X-Y") — mostrarlo explícito para que no se confunda con un
+        // rango ni con el cutoff solo.
+        if (action.indexOf('despachar') === 0) return `Despachar ${hora[1]}`;
+        return hora[1];
     }
 
     function extraerHoraTope(action) {
@@ -2499,7 +2511,13 @@
 
         let icon = '📅', cls = '';
         if (esHoy) {
-            const tope = extraerHoraTope(headline.action) || (headline.cutoff ? { h: Number(headline.cutoff.split(':')[0]), m: Number(headline.cutoff.split(':')[1]) } : null);
+            // El cutoff real (hora límite de impresión) manda siempre — la
+            // action ("pasan 10:00-12:00") describe cuándo PASA el repartidor,
+            // que es más tarde que el cutoff, no la hora límite en sí. Usar el
+            // primer horario que aparece en el texto daba "tiempo de más".
+            const tope = headline.cutoff
+                ? { h: Number(headline.cutoff.split(':')[0]), m: Number(headline.cutoff.split(':')[1]) }
+                : extraerHoraTope(headline.action);
             let urgent = false, passed = false;
             if (tope) {
                 const horaLimite = new Date();
