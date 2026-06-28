@@ -3121,7 +3121,7 @@
                 setTimeout(() => row.classList.remove('fd-copied'), 900);
                 const t = document.createElement('div');
                 t.className = 'fd-toast';
-                t.textContent = `✓ #${String(orderId).slice(-8)} copiado`;
+                t.textContent = `✓ #${orderId} copiado`;
                 document.body.appendChild(t);
                 setTimeout(() => t.remove(), 1600);
             };
