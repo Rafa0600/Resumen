@@ -1511,7 +1511,18 @@
     // ══════════════════════════════════════════════
     const RESULTS_LS_KEY = 'resumen_resultados_v1';
     function guardarResultadosCache(data, fetchedAt, liviano) {
-        try { localStorage.setItem(RESULTS_LS_KEY, JSON.stringify({ data, fetchedAt, liviano: !!liviano })); } catch (e) {}
+        // Los arrays de desglose (pedidos individuales) son grandes y no se necesitan
+        // entre sesiones — solo los contadores para el "instant load".
+        const slim = data.map(({ readyFlexDetalle, readyColectaDetalle, printedFlexDetalle, printedColectaDetalle, escanearDetalle, ...rest }) => rest);
+        try {
+            localStorage.setItem(RESULTS_LS_KEY, JSON.stringify({ data: slim, fetchedAt, liviano: !!liviano }));
+        } catch (e) {
+            // Cuota llena: borrar caché viejo y reintentar
+            try {
+                localStorage.removeItem(RESULTS_LS_KEY);
+                localStorage.setItem(RESULTS_LS_KEY, JSON.stringify({ data: slim, fetchedAt, liviano: !!liviano }));
+            } catch (e2) {}
+        }
     }
     function leerResultadosCache() {
         try {
