@@ -2185,16 +2185,17 @@
         return `${DIAS_CORTOS[corte.getDay()]} ${hhmm}`;
     }
 
-    // Proyecta cuántos pedidos más entrarán hasta el próximo corte laboral.
-    function proyectarHasta(currentPending, vel, corteH, corteM) {
+    // Proyecta cuántos pedidos más entrarán hasta el próximo corte.
+    // Acepta un corte pre-calculado { corte: Date, dias } o calcula el próximo día laboral.
+    // Usa horas de reloj real porque en ML los pedidos llegan las 24h.
+    function proyectarHasta(currentPending, vel, corteH, corteM, preCorte = null) {
         const now = new Date();
-        const { corte, dias } = proximoCorteLaboral(corteH, corteM);
+        const { corte, dias } = preCorte || proximoCorteLaboral(corteH, corteM);
         const remainHours = (corte - now) / 3600000;
         const base = { passed: false, corte, dias, remainHours, esMañana: dias >= 1 };
-        if (!vel) return { ...base, total: null, more: null };
-        const activas = horasActivas(now, corte);
-        const more = Math.round((vel.perActiveHour || vel.perHour) * activas);
-        return { ...base, more, total: currentPending + more, activas };
+        if (!vel || remainHours <= 0) return { ...base, total: null, more: null };
+        const more = Math.round(vel.perHour * remainHours);
+        return { ...base, more, total: currentPending + more };
     }
 
     function fmtRate(perHour) {
@@ -2225,18 +2226,42 @@
     }
 
     // Retorna el horario de corte de ventas de colecta leyendo HORARIOS.
-    // El cutoff en HORARIOS es el horario de despacho; las ventas cierran 30 min antes.
-    // Si no hay datos cargados, usa el default 15:00.
+    // Busca el próximo corte de colecta para UNA cuenta, mirando los próximos días
+    // según sus horarios. Devuelve { corte: Date, dias: number } o null si no hay datos.
+    function getProximoCutoffColecta(cuentaNombre) {
+        const horarios = HORARIOS[cuentaNombre];
+        const proxima  = HORARIOS_PROXIMA[cuentaNombre];
+        if (!horarios && !proxima) return null;
+        const now = new Date();
+        for (let i = 0; i <= 14; i++) {
+            const d = new Date(now); d.setDate(now.getDate() + i);
+            if (!esDiaLaboral(d)) continue;
+            const dow = d.getDay();
+            const fuente = (horarios?.[dow]?.cutoff ? horarios : null) ||
+                           (proxima?.[dow]?.cutoff  ? proxima  : null);
+            if (!fuente) continue;
+            const entry = fuente[dow];
+            if (!entry?.cutoff) continue;
+            const mm = entry.cutoff.match(/(\d{1,2}):(\d{2})/);
+            if (!mm) continue;
+            // ventas cierran 30 min antes del despacho
+            let salesMin = Number(mm[1]) * 60 + Number(mm[2]) - 30;
+            if (salesMin < 0) salesMin = 0;
+            const salesH = Math.floor(salesMin / 60), salesM = salesMin % 60;
+            const corteFecha = new Date(d); corteFecha.setHours(salesH, salesM, 0, 0);
+            if (corteFecha > now) return { corte: corteFecha, dias: i };
+        }
+        return null;
+    }
+
+    // Mantener por compatibilidad (usada en resumen horario)
     function getColectaCorte() {
         let minMin = COLECTA_CORTE_H * 60 + COLECTA_CORTE_M;
         let found = false;
         for (const c of CUENTAS) {
-            const h = getHorarioHoy(c.nombre);
-            if (!h || !h.cutoff) continue;
-            const m = h.cutoff.match(/(\d{1,2}):(\d{2})/);
-            if (!m) continue;
-            const dispMin = Number(m[1]) * 60 + Number(m[2]);
-            const salesMin = dispMin - 30; // ventas cierran 30 min antes del despacho
+            const pc = getProximoCutoffColecta(c.nombre);
+            if (!pc) continue;
+            const salesMin = pc.corte.getHours() * 60 + pc.corte.getMinutes();
             if (!found || salesMin < minMin) { minMin = salesMin; found = true; }
         }
         return { h: Math.floor(minMin / 60), m: minMin % 60 };
@@ -2264,10 +2289,34 @@
         const velFlex    = calcVelocidad(allFlexDates);
         const velColecta = calcVelocidad(allColectaDates);
 
-        // Corte de colecta desde HORARIOS (ventas = despacho - 30 min)
-        const colCorte = getColectaCorte();
-        const projFlex    = proyectarHasta(flexPending,    velFlex,    FLEX_CORTE_H, FLEX_CORTE_M);
-        const projColecta = proyectarHasta(colectaPending, velColecta, colCorte.h,   colCorte.m);
+        // Flex: único corte compartido (14:00 ML)
+        const projFlex = proyectarHasta(flexPending, velFlex, FLEX_CORTE_H, FLEX_CORTE_M);
+
+        // Colecta: proyección por cuenta con su propio horario de corte
+        const colectaProyPorCuenta = resultados.map(r => {
+            const preCorte = getProximoCutoffColecta(r.cuenta.nombre);
+            const pending  = (r.ready?.colecta || 0) + (r.printed?.colecta || 0);
+            const vel      = calcVelocidad(r.colectaDatesAll || []);
+            // Si no hay datos de vel por cuenta, distribuir la vel total proporcional al pending
+            const velEfectiva = vel || (colectaPending > 0 && velColecta
+                ? { perHour: velColecta.perHour * (pending / colectaPending), intervalMin: velColecta.intervalMin }
+                : null);
+            const corteDefault = getColectaCorte();
+            return proyectarHasta(pending, velEfectiva,
+                corteDefault.h, corteDefault.m, preCorte || null);
+        });
+        // Corte más temprano entre las cuentas (para el label del panel)
+        const colectaCorteRef = colectaProyPorCuenta.reduce((best, p) =>
+            (!best || p.corte < best.corte) ? p : best, null) || { corte: new Date(), dias: 0 };
+        // Sumar proyecciones individuales
+        const projColecta = {
+            corte:   colectaCorteRef.corte,
+            dias:    colectaCorteRef.dias,
+            total:   colectaProyPorCuenta.some(p => p.total !== null)
+                ? colectaProyPorCuenta.reduce((s, p) => s + (p.total ?? (p.currentPending || 0)), 0)
+                : null,
+            more:    colectaProyPorCuenta.reduce((s, p) => s + (p.more || 0), 0),
+        };
 
         // ── Mini bloque: total/h + desglose flex/colecta ──
         const totalPerHour = (velFlex?.perHour || 0) + (velColecta?.perHour || 0);
@@ -2459,8 +2508,15 @@
         });
         const hayError = resultados.some(r => r.error);
 
-        // Guardar lo que estaba como "anterior" antes de pisar con lo nuevo.
-        if (resultadosCache) resultadosAnterior = resultadosCache;
+        // Guardar como "anterior" solo si los datos realmente cambiaron.
+        // Así el ojito siempre muestra el último estado distinto, no el refresh anterior.
+        if (resultadosCache) {
+            const oldSnap = buildReadySnapshot(resultadosCache.data);
+            const newSnap = buildReadySnapshot(resultados);
+            if (JSON.stringify(oldSnap) !== JSON.stringify(newSnap)) {
+                resultadosAnterior = resultadosCache;
+            }
+        }
         resultadosCache = { data: resultados, fetchedAt: Date.now(), liviano };
         guardarResultadosCache(resultados, resultadosCache.fetchedAt, liviano);
         document.body.classList.remove('actualizando');
@@ -3080,6 +3136,8 @@
         const modal = document.getElementById('escanearModal');
         const cont = document.getElementById('escanearList');
 
+        const catalog = buildStockCatalog();
+
         let html = '';
         let totalItems = 0;
         resultadosCache.data.forEach(r => {
@@ -3094,7 +3152,21 @@
                     : null;
                 const productos = it.productos || [];
                 const productosHtml = productos.length
-                    ? productos.map(p => `<div class="esc-prod-item">• ${escHtml(p.titulo)}${p.cantidad > 1 ? ` <b>×${p.cantidad}</b>` : ''}</div>`).join('')
+                    ? productos.map(p => {
+                        const sku  = p.sku || '';
+                        const info = sku ? (catalog?.bySku[String(sku)] || null) : null;
+                        const isTech = sku && String(sku).startsWith('5');
+                        const nom   = info?.titulo || p.titulo || '—';
+                        const color = isTech ? '' : (info?.color || '');
+                        const talle = isTech ? '' : (info?.talle || '');
+                        const skuTag = isTech ? ` <span style="color:var(--muted);font-size:10px">[${escHtml(sku)}]</span>` : '';
+                        const colorTalle = [color, talle].filter(Boolean).join(' · ');
+                        const sub = isTech
+                            ? ` <span style="color:var(--blue);font-size:11px">${escHtml(sku)}</span>`
+                            : (colorTalle ? ` <span style="color:var(--blue);font-size:11px">${escHtml(colorTalle)}</span>` : '');
+                        const cantHtml = p.cantidad > 1 ? ` <b>×${p.cantidad}</b>` : '';
+                        return `<div class="esc-prod-item">• ${escHtml(nom)}${skuTag}${cantHtml}${sub}</div>`;
+                    }).join('')
                     : `<div class="esc-prod-item esc-prod-empty">sin detalle de producto</div>`;
                 html += `
                 <div class="esc-item">
