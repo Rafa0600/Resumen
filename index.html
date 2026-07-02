@@ -266,11 +266,13 @@
 
         /* ── Total al corte (siempre visible) ── */
         .proy-quick {
-            flex: 1;
+            flex: 1 1 auto;
+            min-width: 0;
             display: flex;
             align-items: baseline;
             justify-content: center;
-            gap: 2px;
+            gap: 4px;
+            overflow: hidden;
             font-family: 'Space Mono', monospace;
         }
         .pq-aprox {
@@ -291,6 +293,9 @@
             align-self: flex-end;
             padding-bottom: 3px;
             white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            min-width: 0;
         }
 
         /* ── PROYECCIÓN PANEL ── */
@@ -1536,6 +1541,30 @@
         } catch (e) { return null; }
     }
 
+    // "Anterior" = último estado REALMENTE distinto (para el ojito 👁). Persiste
+    // entre recargas así el ojito funciona aunque refresques sin cambios.
+    const RESULTS_PREV_KEY = 'resumen_anterior_v1';
+    function guardarAnterior(cacheObj) {
+        if (!cacheObj?.data) return;
+        const slim = cacheObj.data.map(({ readyFlexDetalle, readyColectaDetalle, printedFlexDetalle, printedColectaDetalle, escanearDetalle, ...rest }) => rest);
+        const payload = JSON.stringify({ data: slim, fetchedAt: cacheObj.fetchedAt });
+        try { localStorage.setItem(RESULTS_PREV_KEY, payload); }
+        catch (e) {
+            try { localStorage.removeItem(RESULTS_PREV_KEY); localStorage.setItem(RESULTS_PREV_KEY, payload); } catch (e2) {}
+        }
+    }
+    function leerAnterior() {
+        try {
+            const c = JSON.parse(localStorage.getItem(RESULTS_PREV_KEY));
+            if (!c?.data) return null;
+            c.data.forEach(r => {
+                const found = CUENTAS.find(x => x.nombre === r.cuenta?.nombre);
+                if (found) r.cuenta = found;
+            });
+            return c;
+        } catch (e) { return null; }
+    }
+
     // ══════════════════════════════════════════════
     //  PROGRESO DE CARGA (porcentaje, no cantidad)
     // ══════════════════════════════════════════════
@@ -1917,7 +1946,7 @@
                         s?.receiver_address?.city?.name || '',
                         s?.receiver_address?.zip_code || ''
                     );
-                    escanearDetalle.push({ orderId: meta.orderId, zona, qty: q, productos: meta.productos || [] });
+                    escanearDetalle.push({ orderId: meta.orderId, zona, qty: q, date: meta.date, productos: meta.productos || [] });
                     printedFlexDetalle.push({ orderId: meta.orderId, qty: q, date: meta.date, productos: meta.productos || [] });
                 } else {
                     printed.colecta++; printed.colectaUni += q;
@@ -2515,6 +2544,7 @@
             const newSnap = buildReadySnapshot(resultados);
             if (JSON.stringify(oldSnap) !== JSON.stringify(newSnap)) {
                 resultadosAnterior = resultadosCache;
+                guardarAnterior(resultadosAnterior);
             }
         }
         resultadosCache = { data: resultados, fetchedAt: Date.now(), liviano };
@@ -3144,27 +3174,27 @@
             const detalle = r.escanearDetalle || [];
             if (!detalle.length) return;
             totalItems += detalle.length;
-            const ordenado = detalle.slice().sort((a, b) => (a.zona || '').localeCompare(b.zona || ''));
+            // Últimas órdenes arriba (por fecha desc)
+            const ordenado = detalle.slice().sort((a, b) => {
+                const ta = a.date ? new Date(a.date).getTime() : 0;
+                const tb = b.date ? new Date(b.date).getTime() : 0;
+                return tb - ta;
+            });
             html += `<div class="esc-grupo-title ${r.cuenta.css}">${r.cuenta.nombre} · ${detalle.length}</div>`;
             ordenado.forEach(it => {
                 const href = it.orderId
                     ? `https://www.mercadolibre.com.ar/ventas/${it.orderId}/detalle`
                     : null;
-                const productos = it.productos || [];
+                const productos = ordenarProductos(it.productos, catalog);
                 const productosHtml = productos.length
                     ? productos.map(p => {
-                        const sku  = p.sku || '';
-                        const info = sku ? (catalog?.bySku[String(sku)] || null) : null;
-                        const isTech = sku && String(sku).startsWith('5');
-                        const nom   = info?.titulo || p.titulo || '—';
-                        const color = isTech ? '' : (info?.color || '');
-                        const talle = isTech ? '' : (info?.talle || '');
+                        const { sku, isTech, nom, color, talle, cantidad } = resolverProducto(p, catalog);
                         const skuTag = isTech ? ` <span style="color:var(--muted);font-size:10px">[${escHtml(sku)}]</span>` : '';
                         const colorTalle = [color, talle].filter(Boolean).join(' · ');
                         const sub = isTech
                             ? ` <span style="color:var(--blue);font-size:11px">${escHtml(sku)}</span>`
                             : (colorTalle ? ` <span style="color:var(--blue);font-size:11px">${escHtml(colorTalle)}</span>` : '');
-                        const cantHtml = p.cantidad > 1 ? ` <b>×${p.cantidad}</b>` : '';
+                        const cantHtml = cantidad > 1 ? ` <b>×${cantidad}</b>` : '';
                         return `<div class="esc-prod-item">• ${escHtml(nom)}${skuTag}${cantHtml}${sub}</div>`;
                     }).join('')
                     : `<div class="esc-prod-item esc-prod-empty">sin detalle de producto</div>`;
@@ -3280,6 +3310,49 @@
         } catch (e) { return null; }
     }
 
+    // Resuelve nombre/color/talle/sku de un producto contra el catálogo (SKU).
+    function resolverProducto(p, catalog) {
+        const sku    = p.sku || '';
+        const info   = sku ? (catalog?.bySku[String(sku)] || null) : null;
+        const isTech = sku && String(sku).startsWith('5');
+        return {
+            sku, isTech,
+            nom:      info?.titulo || p.titulo || '—',
+            color:    isTech ? '' : (info?.color || ''),
+            talle:    isTech ? '' : (info?.talle || ''),
+            cantidad: p.cantidad || 1
+        };
+    }
+
+    // Orden de talles: letras (XS→XXL) primero por rango, luego numéricos, luego texto, vacío al final.
+    const TALLE_ORDEN = ['xxs','xs','s','m','l','xl','xxl','2xl','xxxl','3xl','4xl','5xl'];
+    function _talleClave(t) {
+        const s = String(t || '').trim().toLowerCase();
+        if (!s) return [4, 0];
+        const idx = TALLE_ORDEN.indexOf(s);
+        if (idx >= 0) return [0, idx];
+        const num = parseFloat(s.replace(',', '.'));
+        if (!isNaN(num) && /^[\d.,]+$/.test(s)) return [1, num];
+        return [2, s];
+    }
+    function _cmpTalle(a, b) {
+        const ka = _talleClave(a), kb = _talleClave(b);
+        if (ka[0] !== kb[0]) return ka[0] - kb[0];
+        if (ka[0] === 0 || ka[0] === 1) return ka[1] - kb[1];
+        return String(ka[1]).localeCompare(String(kb[1]), 'es');
+    }
+
+    // Ordena productos por título, color, talle (menor a mayor). Devuelve copia.
+    function ordenarProductos(productos, catalog) {
+        const opts = { numeric: true, sensitivity: 'base' };
+        return (productos || []).slice().sort((a, b) => {
+            const ra = resolverProducto(a, catalog), rb = resolverProducto(b, catalog);
+            return ra.nom.localeCompare(rb.nom, 'es', opts)
+                || ra.color.localeCompare(rb.color, 'es', opts)
+                || _cmpTalle(ra.talle, rb.talle);
+        });
+    }
+
     // Busca el nombre corto del catálogo por solapamiento de palabras con el título de ML.
     // Devuelve el titulo del catálogo si ≥75 % de sus palabras están en el título de ML.
     function _titleFallback(mlTitle, byTitle) {
@@ -3353,7 +3426,7 @@
             ordenado.forEach(d => {
                 const hora    = fmtHoraDesglose(d.date);
                 const orderId = d.orderId ? String(d.orderId) : '';
-                const prods   = d.productos || [];
+                const prods   = ordenarProductos(d.productos, catalog);
                 const clickCls  = orderId ? ' fd-clickable' : '';
                 const orderAttr = orderId ? ` data-order="${escHtml(orderId)}"` : '';
 
@@ -3366,14 +3439,8 @@
                 }
 
                 prods.forEach((it, idx) => {
-                    const sku  = it.sku || '';
-                    const info = sku ? (catalog?.bySku[String(sku)] || null) : null;
-                    const nom   = info?.titulo || it.titulo || '—';
-                    const color = info?.color  || '';
-                    const talle = info?.talle  || '';
-                    const cant  = it.cantidad || 1;
+                    const { sku, isTech, nom, color, talle, cantidad: cant } = resolverProducto(it, catalog);
 
-                    const isTech = sku && String(sku).startsWith('5');
                     const cantHtml = cant > 1 ? `<span class="fd-q">×${cant}</span>` : '';
                     const firstCls = idx === 0 ? ' fd-order-first' : '';
                     const timeCell = idx === 0 ? escHtml(hora) : '';
@@ -3448,18 +3515,28 @@
     // ══════════════════════════════════════════════
     //  COMPARAR — mantener presionado 👁 → datos del refresco anterior
     // ══════════════════════════════════════════════
+    function hayDiferenciaAnterior() {
+        if (!resultadosAnterior || !resultadosCache) return false;
+        const a = buildReadySnapshot(resultadosAnterior.data);
+        const c = buildReadySnapshot(resultadosCache.data);
+        return Object.keys({ ...a, ...c }).some(k => (a[k] || 0) !== (c[k] || 0));
+    }
     function actualizarCompareBtn() {
         const b = document.getElementById('compareBtn');
-        if (b) b.classList.toggle('disabled', !resultadosAnterior);
+        if (b) b.classList.toggle('disabled', !hayDiferenciaAnterior());
     }
     function iniciarComparacion() {
-        if (comparando || cargando || !resultadosAnterior) return;
+        if (comparando || cargando || !hayDiferenciaAnterior()) return;
         comparando = true;
         document.getElementById('compareBtn').classList.add('activo');
         document.getElementById('compareBannerAge').textContent =
             fmtHace(Date.now() - resultadosAnterior.fetchedAt);
         document.getElementById('compareBanner').style.display = 'block';
         mostrarValoresAnteriores();
+        // Deltas flotantes verde/rojo: cuánto subió/bajó desde el último estado distinto.
+        const antesSnap = buildReadySnapshot(resultadosAnterior.data);
+        const ahoraSnap = buildReadySnapshot(resultadosCache.data);
+        animarDeltas(antesSnap, ahoraSnap);
     }
     function terminarComparacion() {
         if (!comparando) return;
@@ -3526,10 +3603,12 @@
     wireCompareBtn();
     aplicarPrefs();
     resultadosCache = leerResultadosCache();
+    resultadosAnterior = leerAnterior();
     if (resultadosCache) {
         renderResultados(resultadosCache.data, true);
         actualizarFrescura();
     }
+    actualizarCompareBtn();
     setInterval(() => { if (!cargando) actualizarFrescura(); }, 15000);
     cargarTodo(false);
     </script>
