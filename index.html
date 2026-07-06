@@ -1824,22 +1824,34 @@
             liviano ? Promise.resolve([]) : fetchShippedRecientes()
         ]);
 
-        const PRIORIDAD = { ready_to_print: 4, printed: 3, ready_for_pickup: 2, buffered: 1 };
+        // Prioridad = orden REAL del ciclo de vida del envío:
+        //   buffered → ready_to_print → printed → ready_for_pickup
+        // Cuando ML devuelve el MISMO envío en dos colas a la vez (lag: ya lo
+        // imprimiste pero su índice de ready_to_print todavía lo lista), vale el
+        // estado MÁS AVANZADO. Antes ready_to_print tenía la prioridad más alta y un
+        // envío ya impreso se contaba como "para imprimir" → inflaba el número.
+        const PRIORIDAD = { buffered: 1, ready_to_print: 2, printed: 3, ready_for_pickup: 4 };
         const allShipMap = new Map();
+        let _overlaps = 0;
         for (const it of [...readyItems, ...printedItems, ...pickupItems, ...bufferedItems]) {
             const existing = allShipMap.get(it.sid);
             if (!existing) {
                 allShipMap.set(it.sid, { substatus: it.substatus, qty: it.qty, date: it.date, orderId: it.orderId, productos: it.productos || [] });
             } else {
-                existing.qty += it.qty;
-                existing.productos = (existing.productos || []).concat(it.productos || []);
+                // Mismo sid en varias colas = MISMO envío con los MISMOS items.
+                // No se suma la cantidad (duplicaría); se reemplaza por el estado más avanzado.
+                if (existing.substatus !== it.substatus) _overlaps++;
                 if (PRIORIDAD[it.substatus] > PRIORIDAD[existing.substatus]) {
                     existing.substatus = it.substatus;
+                    existing.qty = it.qty;
+                    existing.productos = it.productos || [];
+                    if (it.orderId) existing.orderId = it.orderId;
                 }
                 // Conservar la fecha más temprana para mejor estimación de velocidad
                 if (it.date && (!existing.date || it.date < existing.date)) existing.date = it.date;
             }
         }
+        if (_overlaps) console.log(`[${cuenta.nombre}] envíos en 2 colas a la vez (lag ML): ${_overlaps} → se usó el estado más avanzado`);
 
         const shippedShipMap = new Map();
         for (const it of shippedRecientes) {
@@ -1864,7 +1876,11 @@
         for (const sid of allShipMap.keys()) {
             const meta = allShipMap.get(sid);
             const esCandidatoEscaneo = meta.substatus === 'printed' || meta.substatus === 'ready_for_pickup';
-            if (ltGet(sid) === undefined || esCandidatoEscaneo) needFetch.add(sid);
+            // También traemos los ready_to_print para verificar su ESTADO REAL: el
+            // buscador de ML a veces sigue listándolos como "para imprimir" aunque ya
+            // estén impresos. El shipment completo tiene el substatus verdadero.
+            const esReadyPrint = meta.substatus === 'ready_to_print';
+            if (ltGet(sid) === undefined || esCandidatoEscaneo || esReadyPrint) needFetch.add(sid);
         }
         for (const sid of shippedShipMap.keys()) needFetch.add(sid);
         const shipEntries = [...needFetch];
@@ -1918,6 +1934,7 @@
         const printedColectaDetalle= []; // colecta printed/ready_for_pickup: {orderId, qty, date, productos[]}
 
         // Para imprimir / impresos / buffered — tipo flex/colecta desde el cache.
+        let _reclasif = 0;
         allShipMap.forEach((meta, sid) => {
             const t = ltGet(sid);
             if (t === undefined) return; // no se pudo resolver el tipo → omitir
@@ -1926,7 +1943,14 @@
             const orderTs = meta.date ? new Date(meta.date).getTime() : 0;
             const isToday = orderTs >= todayTs;
 
-            if (meta.substatus === 'ready_to_print') {
+            // Estado REAL: si trajimos el shipment completo, su substatus manda sobre
+            // el del buscador (que se atrasa y deja "para imprimir" cosas ya impresas).
+            const shipReal = ships.get(sid);
+            const subReal = shipReal?.substatus || shipReal?.status_history?.substatus;
+            const substatus = subReal || meta.substatus;
+            if (subReal && subReal !== meta.substatus) _reclasif++;
+
+            if (substatus === 'ready_to_print') {
                 if (isFlex) {
                     ready.flex++; ready.flexUni += q;
                     if (isToday && meta.date) flexDatesAll.push(meta.date);
@@ -1936,7 +1960,7 @@
                     if (isToday && meta.date) colectaDatesAll.push(meta.date);
                     readyColectaDetalle.push({ orderId: meta.orderId, qty: q, date: meta.date, productos: meta.productos || [] });
                 }
-            } else if (meta.substatus === 'printed' || meta.substatus === 'ready_for_pickup') {
+            } else if (substatus === 'printed' || substatus === 'ready_for_pickup') {
                 if (isFlex) {
                     printed.flex++; printed.flexUni += q;
                     if (isToday && meta.date) flexDatesAll.push(meta.date);
@@ -1953,10 +1977,11 @@
                     if (isToday && meta.date) colectaDatesAll.push(meta.date);
                     printedColectaDetalle.push({ orderId: meta.orderId, qty: q, date: meta.date, productos: meta.productos || [] });
                 }
-            } else if (meta.substatus === 'buffered') {
+            } else if (substatus === 'buffered') {
                 buffered++; bufferedUni += q;
             }
         });
+        if (_reclasif) console.log(`[${cuenta.nombre}] reclasificados por estado real del shipment: ${_reclasif} (el buscador de ML los daba en otra cola)`);
 
         // Despachados recientes — por escanear (estado fresco) + muestra de velocidad.
         shippedShipMap.forEach((sm, sid) => {
