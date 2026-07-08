@@ -263,6 +263,18 @@
         }
         .reload-btn:hover, .reload-btn:active { border-color: var(--yellow); color: var(--yellow); }
         .reload-btn:disabled { opacity: 0.35; cursor: wait; }
+        /* Botón de filtro por día: ancho automático para la etiqueta */
+        .dia-filtro-btn {
+            width: auto;
+            border-radius: 17px;
+            padding: 0 12px;
+            gap: 5px;
+            font-size: 13px;
+            font-weight: 700;
+            white-space: nowrap;
+        }
+        .dia-filtro-btn .dia-lbl { font-size: 12px; }
+        .dia-filtro-btn.active { border-color: var(--yellow); color: #000; background: var(--yellow); }
 
         /* ── Total al corte (siempre visible) ── */
         .proy-quick {
@@ -1305,6 +1317,9 @@
             <span class="pq-val" id="proyQuickVal">—</span>
             <span class="pq-lbl">al corte</span>
         </div>
+        <button class="reload-btn dia-filtro-btn" id="diaFiltroBtn" onclick="toggleDiaFiltro()" title="Ver solo los envíos que corresponden al día. Después de las 17hs muestra el día hábil siguiente; si da 0, el próximo con paquetes.">
+            <span>📅</span><span class="dia-lbl">Todos</span>
+        </button>
         <button class="reload-btn compare-btn disabled" id="compareBtn" title="Mantené presionado para ver lo anterior" style="touch-action:none">👁</button>
         <button class="reload-btn" id="reloadBtn" onclick="cargarTodo(false)">
             <span id="reloadIcon">⟳</span>
@@ -1742,7 +1757,10 @@
     // ══════════════════════════════════════════════
     async function cargarCuenta(cuenta, liviano = false) {
         let { access_token, user_id } = await getToken(cuenta);
-        const makeAuthOpts = () => ({ headers: { 'Authorization': `Bearer ${access_token}` } });
+        // cache:'no-store' → cada refresco pega a la red fresco. Sin esto, algunos
+        // navegadores (sobre todo en celu) servían la respuesta cacheada y mostraban
+        // "para imprimir" cosas que ya estaban impresas hasta que se limpiaba el caché.
+        const makeAuthOpts = () => ({ cache: 'no-store', headers: { 'Authorization': `Bearer ${access_token}` } });
 
         async function fetchSubstatus(substatus) {
             const items = [];
@@ -1897,11 +1915,11 @@
             const idsParam = chunk.join(',');
             let arr;
             try {
-                arr = await jsonConRetry(`${cuenta.proxy}/api/shipments?ids=${idsParam}`, makeAuthOpts());
+                arr = await jsonConRetry(`${cuenta.proxy}/api/shipments?ids=${idsParam}&_ts=${Date.now()}`, makeAuthOpts());
             } catch (e) {
                 invalidarToken(cuenta.proxy);
                 ({ access_token, user_id } = await getToken(cuenta));
-                try { arr = await jsonConRetry(`${cuenta.proxy}/api/shipments?ids=${idsParam}`, makeAuthOpts()); }
+                try { arr = await jsonConRetry(`${cuenta.proxy}/api/shipments?ids=${idsParam}&_ts=${Date.now()}`, makeAuthOpts()); }
                 catch (e2) { arr = []; }
             }
             if (Array.isArray(arr)) {
@@ -1949,16 +1967,17 @@
             const subReal = shipReal?.substatus || shipReal?.status_history?.substatus;
             const substatus = subReal || meta.substatus;
             if (subReal && subReal !== meta.substatus) _reclasif++;
+            const entrega = _diaEntrega(shipReal); // día de entrega (YYYY-MM-DD, hora AR) para el filtro "por día"
 
             if (substatus === 'ready_to_print') {
                 if (isFlex) {
                     ready.flex++; ready.flexUni += q;
                     if (isToday && meta.date) flexDatesAll.push(meta.date);
-                    readyFlexDetalle.push({ orderId: meta.orderId, qty: q, date: meta.date, productos: meta.productos || [] });
+                    readyFlexDetalle.push({ orderId: meta.orderId, qty: q, date: meta.date, entrega, productos: meta.productos || [] });
                 } else {
                     ready.colecta++; ready.colectaUni += q;
                     if (isToday && meta.date) colectaDatesAll.push(meta.date);
-                    readyColectaDetalle.push({ orderId: meta.orderId, qty: q, date: meta.date, productos: meta.productos || [] });
+                    readyColectaDetalle.push({ orderId: meta.orderId, qty: q, date: meta.date, entrega, productos: meta.productos || [] });
                 }
             } else if (substatus === 'printed' || substatus === 'ready_for_pickup') {
                 if (isFlex) {
@@ -1970,12 +1989,12 @@
                         s?.receiver_address?.city?.name || '',
                         s?.receiver_address?.zip_code || ''
                     );
-                    escanearDetalle.push({ orderId: meta.orderId, zona, qty: q, date: meta.date, productos: meta.productos || [] });
-                    printedFlexDetalle.push({ orderId: meta.orderId, qty: q, date: meta.date, productos: meta.productos || [] });
+                    escanearDetalle.push({ orderId: meta.orderId, zona, qty: q, date: meta.date, entrega, productos: meta.productos || [] });
+                    printedFlexDetalle.push({ orderId: meta.orderId, qty: q, date: meta.date, entrega, productos: meta.productos || [] });
                 } else {
                     printed.colecta++; printed.colectaUni += q;
                     if (isToday && meta.date) colectaDatesAll.push(meta.date);
-                    printedColectaDetalle.push({ orderId: meta.orderId, qty: q, date: meta.date, productos: meta.productos || [] });
+                    printedColectaDetalle.push({ orderId: meta.orderId, qty: q, date: meta.date, entrega, productos: meta.productos || [] });
                 }
             } else if (substatus === 'buffered') {
                 buffered++; bufferedUni += q;
@@ -2853,7 +2872,115 @@
         });
     }
 
+    // ══════════════════════════════════════════════
+    //  FILTRO "POR DÍA" (envíos que corresponden a un día de entrega)
+    //  Regla: base = hoy; después de las 17hs (hora AR) → día hábil siguiente;
+    //  si ese día da 0 → busca el próximo día hábil que tenga paquetes.
+    //  Sirve para saber cuánto imprimir para el día que corresponde, sin que se
+    //  mezclen ventas de otros días. Funciona para Flex Y Colecta: ambos traen
+    //  shipping_option.estimated_delivery_time/limit.date.
+    // ══════════════════════════════════════════════
+    window._diaFiltroActivo = (() => { try { return localStorage.getItem('resumen_dia_filtro') === '1'; } catch(e) { return false; } })();
+
+    function _diaEntrega(s) {
+        const d = s?.shipping_option?.estimated_delivery_limit?.date
+               || s?.shipping_option?.estimated_delivery_time?.date
+               || s?.shipping_option?.estimated_delivery_final?.date || '';
+        return d ? String(d).slice(0, 10) : ''; // YYYY-MM-DD (viene en -03:00 = hora AR)
+    }
+
+    function _fmtDiaAR(d) { const p = n => String(n).padStart(2, '0'); return `${d.getFullYear()}-${p(d.getMonth()+1)}-${p(d.getDate())}`; }
+
+    // Día objetivo: hoy (o día hábil siguiente si son ≥17hs), avanzando al próximo
+    // día hábil que tenga paquetes según los datos cargados.
+    function _diaObjetivoConDatos(raw) {
+        const dias = new Set();
+        (raw || []).forEach(r => {
+            // Solo FLEX define el día de despacho: flex es same-day, así que su fecha de
+            // entrega ES el día de despacho. La colecta se entrega DÍAS después del
+            // despacho, por lo que su fecha de entrega no sirve para elegir el día.
+            (r.readyFlexDetalle || []).forEach(x => { if (x.entrega) dias.add(x.entrega); });
+        });
+        const arNow = new Date(new Date().toLocaleString('en-US', { timeZone: 'America/Argentina/Buenos_Aires' }));
+        const t = new Date(arNow); t.setHours(0, 0, 0, 0);
+        if (arNow.getHours() >= 17) t.setDate(t.getDate() + 1); // después de las 17hs → día siguiente
+        for (let i = 0; i < 14; i++) {
+            while (t.getDay() === 0 || t.getDay() === 6) t.setDate(t.getDate() + 1); // saltar sáb/dom
+            const s = _fmtDiaAR(t);
+            if (dias.has(s)) return s;      // día hábil con paquetes → listo
+            t.setDate(t.getDate() + 1);     // 0 paquetes → probar el próximo
+        }
+        return _fmtDiaAR(t); // fallback (nada en 14 días): devuelve el calculado
+    }
+
+    function _recuentaPorDia(detFlex, detCol, dia) {
+        const f = (detFlex || []).filter(x => x.entrega === dia);
+        // Colecta: toda la pendiente va al próximo despacho → no se filtra por fecha de
+        // entrega (que es días posterior). Se cuenta completa para el día de despacho.
+        const c = (detCol  || []);
+        const sumQ = arr => arr.reduce((a, x) => a + (x.qty || 0), 0);
+        const ff = sumQ(f), cc = sumQ(c);
+        return { flex: f.length, flexUni: ff, colecta: c.length, colectaUni: cc, total: f.length + c.length, totalUni: ff + cc };
+    }
+
+    // Devuelve una copia de `raw` con ready/printed recontados para el día `dia`,
+    // y los arrays de detalle filtrados a ese día (para los modales de desglose).
+    function _filtrarResultadosPorDia(raw, dia) {
+        return (raw || []).map(r => ({
+            ...r,
+            ready:   _recuentaPorDia(r.readyFlexDetalle, r.readyColectaDetalle, dia),
+            printed: _recuentaPorDia(r.printedFlexDetalle, r.printedColectaDetalle, dia),
+            readyFlexDetalle:     (r.readyFlexDetalle || []).filter(x => x.entrega === dia),
+            // Colecta: no se filtra por fecha de entrega (es días posterior al despacho);
+            // toda la pendiente corresponde al día de despacho objetivo.
+            readyColectaDetalle:  (r.readyColectaDetalle || []),
+            printedFlexDetalle:   (r.printedFlexDetalle || []).filter(x => x.entrega === dia),
+            printedColectaDetalle:(r.printedColectaDetalle || []),
+            escanearDetalle:      (r.escanearDetalle || []).filter(x => x.entrega === dia),
+        }));
+    }
+
+    function _etiquetaDia(dia) {
+        if (!dia) return '';
+        const [y, m, d] = dia.split('-').map(Number);
+        const dt = new Date(y, m - 1, d);
+        const hoyAR = new Date(new Date().toLocaleString('en-US', { timeZone: 'America/Argentina/Buenos_Aires' })); hoyAR.setHours(0,0,0,0);
+        const diffD = Math.round((dt - hoyAR) / 86400000);
+        const dName = ['Dom','Lun','Mar','Mié','Jue','Vie','Sáb'][dt.getDay()];
+        const rel = diffD === 0 ? 'hoy' : diffD === 1 ? 'mañana' : `en ${diffD}d`;
+        return `${dName} ${d}/${m} · ${rel}`;
+    }
+
+    function toggleDiaFiltro() {
+        window._diaFiltroActivo = !window._diaFiltroActivo;
+        try { localStorage.setItem('resumen_dia_filtro', window._diaFiltroActivo ? '1' : '0'); } catch(e) {}
+        if (resultadosCache?.data) renderResultados(resultadosCache.data, resultadosCache.fromCache !== false);
+    }
+
     function renderResultados(resultados, fromCache = false) {
+        // ── FILTRO POR DÍA ──────────────────────────────────────────────
+        // Si está activo, recontamos todo para el día objetivo. La proyección
+        // (velocidad de ventas) sigue usando los datos completos (rawResultados).
+        const rawResultados = resultados;
+        let _diaActivo = null;
+        if (window._diaFiltroActivo) {
+            // La caché persistida (localStorage) se guarda sin los arrays de detalle;
+            // sin ellos no se puede filtrar por día → mostramos todo hasta que llegue la
+            // carga fresca (que sí trae el detalle con la fecha de entrega).
+            const hayDetalle = rawResultados.some(r =>
+                (r.readyFlexDetalle?.length || 0) + (r.readyColectaDetalle?.length || 0) +
+                (r.printedFlexDetalle?.length || 0) + (r.printedColectaDetalle?.length || 0) > 0);
+            if (hayDetalle) {
+                _diaActivo = _diaObjetivoConDatos(rawResultados);
+                resultados = _filtrarResultadosPorDia(rawResultados, _diaActivo);
+            }
+        }
+        const _diaBtn = document.getElementById('diaFiltroBtn');
+        if (_diaBtn) {
+            _diaBtn.classList.toggle('active', !!window._diaFiltroActivo);
+            _diaBtn.querySelector('.dia-lbl').textContent = window._diaFiltroActivo ? (_etiquetaDia(_diaActivo) || 'día') : 'Todos';
+        }
+
         const sum = (key, sub) => resultados.reduce((a, r) => a + (r[key]?.[sub] || 0), 0);
         const oldSnap = prevReadySnapshot;
         const newSnap = buildReadySnapshot(resultados);
@@ -2911,8 +3038,8 @@
             tiempoEl.style.display = 'none';
         }
 
-        // ── PROYECCIÓN ──
-        renderProyeccion(resultados);
+        // ── PROYECCIÓN ── (siempre con datos completos: es velocidad de ventas, no del día)
+        renderProyeccion(rawResultados);
 
         // ── CARDS POR CUENTA ──
         let html = '';
