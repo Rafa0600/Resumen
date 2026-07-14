@@ -275,6 +275,10 @@
         }
         .dia-filtro-btn .dia-lbl { font-size: 12px; }
         .dia-filtro-btn.active { border-color: var(--yellow); color: #000; background: var(--yellow); }
+        /* Un color por modo, para distinguir de un vistazo */
+        .dia-filtro-btn.m-hoy    { border-color: var(--yellow); color: #000; background: var(--yellow); }
+        .dia-filtro-btn.m-manana { border-color: #40c4ff; color: #000; background: #40c4ff; }
+        .dia-filtro-btn.m-pasado { border-color: #b388ff; color: #000; background: #b388ff; }
 
         /* ── Total al corte (siempre visible) ── */
         .proy-quick {
@@ -1108,6 +1112,24 @@
             padding: 24px 0;
         }
 
+        /* ── MODAL PRUEBA U/PAQ ── */
+        .pu-order { border:1px solid var(--border); border-radius:10px; padding:8px 10px; margin-bottom:8px; background:rgba(255,255,255,0.02); }
+        .pu-head { display:flex; justify-content:space-between; align-items:baseline; font-size:12px; color:var(--muted-2); margin-bottom:5px; }
+        .pu-head b { color:var(--yellow); font-family:'Space Mono',monospace; font-size:13px; }
+        .pu-row { display:flex; justify-content:space-between; align-items:baseline; gap:8px; padding:3px 0; font-size:12px; }
+        .pu-name { flex:1; min-width:0; color:var(--text); }
+        .pu-u { font-family:'Space Mono',monospace; font-size:11px; color:var(--muted); flex-shrink:0; }
+        .pu-tag { font-size:9px; font-weight:700; padding:1px 6px; border-radius:8px; margin-left:4px; white-space:nowrap; }
+        .pu-tag.conj { background:rgba(64,196,255,0.18); color:var(--blue); }
+        .pu-tag.pack { background:rgba(255,230,0,0.18); color:var(--yellow); }
+        /* Fila de producto con miniatura (modal Impresos / Para imprimir detallado) */
+        .fdi-prod { display:flex; align-items:center; gap:8px; padding:3px 0; font-size:12px; }
+        .fdi-thumb { width:34px; height:34px; border-radius:6px; object-fit:cover; background:#1c1c2e; border:1px solid var(--border); flex-shrink:0; }
+        .fdi-thumb-empty { display:inline-block; }
+        .pu-order.fd-clickable { cursor:pointer; -webkit-tap-highlight-color:transparent; }
+        .pu-order.fd-clickable:active { background:rgba(255,255,255,0.06); }
+        .pu-order.fd-copied { outline:2px solid var(--green); }
+
         /* ── CHIP "FLEX A ESCANEAR" (esquina del hero) ── */
         .hero { position: relative; }
         .hero-escanear {
@@ -1278,9 +1300,9 @@
         <div class="hero-label">Para imprimir</div>
         <div class="hero-number-row">
             <div class="hero-number" id="heroNumber">0</div>
-            <div class="hero-avg" id="heroAvg" style="display:none">
+            <div class="hero-avg" id="heroAvg" style="display:none; cursor:pointer" onclick="abrirPruebaUPaq()" title="Ver cómo se calcula (últimos pedidos)">
                 <span id="heroAvgNum">—</span>
-                <small>u/paq</small>
+                <small>u/paq 🧪</small>
             </div>
             <div class="hero-rates-mini" id="heroRatesMini" style="display:none">
                 <div class="hrm-total-row">
@@ -1436,6 +1458,13 @@
         <div class="modal-sheet">
             <div class="modal-title"><span id="flexDesgloseTitle" class="fd-modal-title-text">Flex</span> <button class="modal-close" id="flexDesgloseClose">×</button></div>
             <div id="flexDesgloseList"></div>
+        </div>
+    </div>
+
+    <div class="modal-overlay" id="pruebaModal">
+        <div class="modal-sheet">
+            <div class="modal-title"><span class="fd-modal-title-text">🧪 Prueba U/PAQ <div class="fd-modal-title-sub" id="pruebaSub"></div></span> <button class="modal-close" id="pruebaClose">×</button></div>
+            <div id="pruebaList"></div>
         </div>
     </div>
 
@@ -1755,7 +1784,7 @@
     // ══════════════════════════════════════════════
     //  CARGA POR CUENTA
     // ══════════════════════════════════════════════
-    async function cargarCuenta(cuenta, liviano = false) {
+    async function cargarCuenta(cuenta, liviano = false, catalogoPromise = null) {
         let { access_token, user_id } = await getToken(cuenta);
         // cache:'no-store' → cada refresco pega a la red fresco. Sin esto, algunos
         // navegadores (sobre todo en celu) servían la respuesta cacheada y mostraban
@@ -1849,21 +1878,34 @@
         // estado MÁS AVANZADO. Antes ready_to_print tenía la prioridad más alta y un
         // envío ya impreso se contaba como "para imprimir" → inflaba el número.
         const PRIORIDAD = { buffered: 1, ready_to_print: 2, printed: 3, ready_for_pickup: 4 };
+        // Un ENVÍO (sid) puede agrupar VARIAS órdenes: es un "pack" (muchos artículos
+        // en un mismo paquete). ML devuelve una fila por ORDEN, todas con el mismo sid.
+        // Hay que SUMAR las órdenes distintas del pack y FUSIONAR sus productos, pero
+        // SIN duplicar cuando la MISMA orden reaparece en dos colas a la vez (lag del
+        // buscador de ML). Por eso se lleva un set de orderId ya contados por envío.
         const allShipMap = new Map();
         let _overlaps = 0;
         for (const it of [...readyItems, ...printedItems, ...pickupItems, ...bufferedItems]) {
             const existing = allShipMap.get(it.sid);
             if (!existing) {
-                allShipMap.set(it.sid, { substatus: it.substatus, qty: it.qty, date: it.date, orderId: it.orderId, productos: it.productos || [] });
+                allShipMap.set(it.sid, {
+                    substatus: it.substatus, qty: it.qty, date: it.date,
+                    orderId: it.orderId, productos: (it.productos || []).slice(),
+                    _orders: new Set(it.orderId != null ? [String(it.orderId)] : [])
+                });
             } else {
-                // Mismo sid en varias colas = MISMO envío con los MISMOS items.
-                // No se suma la cantidad (duplicaría); se reemplaza por el estado más avanzado.
-                if (existing.substatus !== it.substatus) _overlaps++;
-                if (PRIORIDAD[it.substatus] > PRIORIDAD[existing.substatus]) {
-                    existing.substatus = it.substatus;
-                    existing.qty = it.qty;
-                    existing.productos = it.productos || [];
-                    if (it.orderId) existing.orderId = it.orderId;
+                const oid = it.orderId != null ? String(it.orderId) : null;
+                const yaContada = oid != null && existing._orders.has(oid);
+                if (yaContada) {
+                    // MISMA orden en otra cola (lag ML): NO sumar; solo adoptar el estado más avanzado.
+                    if (existing.substatus !== it.substatus) _overlaps++;
+                    if (PRIORIDAD[it.substatus] > PRIORIDAD[existing.substatus]) existing.substatus = it.substatus;
+                } else {
+                    // OTRA orden del MISMO envío (pack): SUMAR unidades y FUSIONAR productos.
+                    existing.qty += it.qty;
+                    if (it.productos && it.productos.length) existing.productos.push(...it.productos);
+                    if (oid != null) existing._orders.add(oid);
+                    if (PRIORIDAD[it.substatus] > PRIORIDAD[existing.substatus]) existing.substatus = it.substatus;
                 }
                 // Conservar la fecha más temprana para mejor estimación de velocidad
                 if (it.date && (!existing.date || it.date < existing.date)) existing.date = it.date;
@@ -1871,9 +1913,16 @@
         }
         if (_overlaps) console.log(`[${cuenta.nombre}] envíos en 2 colas a la vez (lag ML): ${_overlaps} → se usó el estado más avanzado`);
 
+        // Despachados: un solo barrido (sin colas superpuestas), así que todas las
+        // filas con el mismo sid son órdenes DISTINTAS del mismo pack → se SUMAN.
         const shippedShipMap = new Map();
         for (const it of shippedRecientes) {
-            shippedShipMap.set(it.sid, { qty: it.qty, date: it.date });
+            const ex = shippedShipMap.get(it.sid);
+            if (!ex) shippedShipMap.set(it.sid, { qty: it.qty, date: it.date });
+            else {
+                ex.qty += it.qty;
+                if (it.date && (!ex.date || it.date < ex.date)) ex.date = it.date;
+            }
         }
 
         setAccountProgress(cuenta.nombre, 0.25);
@@ -1952,12 +2001,16 @@
         const printedColectaDetalle= []; // colecta printed/ready_for_pickup: {orderId, qty, date, productos[]}
 
         // Para imprimir / impresos / buffered — tipo flex/colecta desde el cache.
+        // Catálogo ya listo (se cargó en paralelo con los fetches); para el multiplicador de packs.
+        const catalogo = catalogoPromise ? await catalogoPromise : null;
         let _reclasif = 0;
         allShipMap.forEach((meta, sid) => {
             const t = ltGet(sid);
             if (t === undefined) return; // no se pudo resolver el tipo → omitir
             const isFlex = t === 'self_service';
-            const q = meta.qty;
+            // Unidades REALES: los packs ("Pack X3") cuentan como sus unidades físicas (3),
+            // no como 1. Se lee el multiplicador del catálogo de stock por SKU.
+            const q = _unidadesReales(meta.productos, catalogo, meta.qty);
             const orderTs = meta.date ? new Date(meta.date).getTime() : 0;
             const isToday = orderTs >= todayTs;
 
@@ -2526,7 +2579,9 @@
             return;
         }
 
-        sincronizarCatalogoBg(); // caché de productos en segundo plano (packs incluidos)
+        // Catálogo (para contar packs como sus unidades reales). Se construye una vez, en
+        // paralelo con la carga de cuentas → no agrega latencia (los fetches son más lentos).
+        const _catalogoPromise = sincronizarCatalogoBg().then(() => buildStockCatalog()).catch(() => null);
         cargando = true;
         const activas = cuentasActivas();
         const liviano = PREFS.vista === 'simple';
@@ -2569,7 +2624,7 @@
         setStatus('loading');
 
         const [settled] = await Promise.all([
-            Promise.allSettled(activas.map(c => cargarCuenta(c, liviano))),
+            Promise.allSettled(activas.map(c => cargarCuenta(c, liviano, _catalogoPromise))),
             cargarHorarios()
         ]);
 
@@ -2880,13 +2935,64 @@
     //  mezclen ventas de otros días. Funciona para Flex Y Colecta: ambos traen
     //  shipping_option.estimated_delivery_time/limit.date.
     // ══════════════════════════════════════════════
-    window._diaFiltroActivo = (() => { try { return localStorage.getItem('resumen_dia_filtro') === '1'; } catch(e) { return false; } })();
+    // Filtro de día: ciclo 'todos' → 'hoy' → 'manana'. SIEMPRE arranca en 'todos' al cargar/refrescar.
+    window._diaFiltroModo = 'todos';
+
+    // Suma n días hábiles (salta sáb/dom) a una fecha "YYYY-MM-DD", sin líos de zona horaria.
+    function _sumarDiaHabil(diaStr, n) {
+        const [y, m, d] = diaStr.split('-').map(Number);
+        const dt = new Date(y, m - 1, d);
+        dt.setDate(dt.getDate() + n);
+        while (dt.getDay() === 0 || dt.getDay() === 6) dt.setDate(dt.getDate() + 1);
+        const p = x => String(x).padStart(2, '0');
+        return `${dt.getFullYear()}-${p(dt.getMonth() + 1)}-${p(dt.getDate())}`;
+    }
+
+    // Extrae {date:'YYYY-MM-DD', min: minutos del día} de un timestamp ISO,
+    // leyendo los dígitos tal cual (hora local AR). Ignora el offset (ML a veces
+    // manda -04:00 y a veces -03:00, pero los dígitos son la hora AR).
+    function _wallParts(iso) {
+        const m = String(iso || '').match(/^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2})/);
+        if (!m) return null;
+        return { date: `${m[1]}-${m[2]}-${m[3]}`, min: (+m[4]) * 60 + (+m[5]) };
+    }
 
     function _diaEntrega(s) {
-        const d = s?.shipping_option?.estimated_delivery_limit?.date
-               || s?.shipping_option?.estimated_delivery_time?.date
-               || s?.shipping_option?.estimated_delivery_final?.date || '';
-        return d ? String(d).slice(0, 10) : ''; // YYYY-MM-DD (viene en -03:00 = hora AR)
+        // FLEX (self_service): same-day → su día operativo ES la fecha de entrega.
+        const isFlex = s?.logistic_type === 'self_service';
+        if (isFlex) {
+            const d = s?.shipping_option?.estimated_delivery_limit?.date
+                   || s?.shipping_option?.estimated_delivery_time?.date
+                   || s?.shipping_option?.estimated_delivery_final?.date || '';
+            return d ? String(d).slice(0, 10) : '';
+        }
+        // COLECTA: día de despacho = el día en que el envío estuvo LISTO, comparado con la
+        // HORA de corte de ML (pay_before). Si estuvo listo pasado el corte → próximo día
+        // hábil. Nunca se devuelve una fecha pasada (un paquete atrasado se despacha hoy).
+        const rd = _wallParts(s?.status_history?.date_ready_to_ship || s?.status_history?.date_handling);
+        const pb = _wallParts(s?.shipping_option?.estimated_delivery_time?.pay_before);
+        let dia = '';
+        if (rd && pb) {
+            // ¿Estuvo listo a tiempo para el corte (comparando FECHA + hora)?
+            const aTiempo = (rd.date < pb.date) || (rd.date === pb.date && rd.min <= pb.min);
+            if (aTiempo) {
+                dia = pb.date;                                          // llegó al corte → día del corte
+            } else {
+                // Perdió el corte → según su propio día y la hora de corte diaria
+                dia = (rd.min <= pb.min) ? rd.date : _sumarDiaHabil(rd.date, 1);
+            }
+        } else if (rd) {
+            dia = rd.date;
+        } else {
+            const d = s?.shipping_option?.estimated_delivery_limit?.date || '';
+            dia = d ? String(d).slice(0, 10) : '';
+        }
+        // Clamp: nunca en el pasado (fechas viejas/vencidas → despacho hoy)
+        if (dia) {
+            const hoyAR = _fmtDiaAR(new Date(new Date().toLocaleString('en-US', { timeZone: 'America/Argentina/Buenos_Aires' })));
+            if (dia < hoyAR) dia = hoyAR;
+        }
+        return dia;
     }
 
     function _fmtDiaAR(d) { const p = n => String(n).padStart(2, '0'); return `${d.getFullYear()}-${p(d.getMonth()+1)}-${p(d.getDate())}`; }
@@ -2914,10 +3020,9 @@
     }
 
     function _recuentaPorDia(detFlex, detCol, dia) {
+        // Cada paquete (flex Y colecta) se atribuye a SU fecha de entrega (entrega).
         const f = (detFlex || []).filter(x => x.entrega === dia);
-        // Colecta: toda la pendiente va al próximo despacho → no se filtra por fecha de
-        // entrega (que es días posterior). Se cuenta completa para el día de despacho.
-        const c = (detCol  || []);
+        const c = (detCol  || []).filter(x => x.entrega === dia);
         const sumQ = arr => arr.reduce((a, x) => a + (x.qty || 0), 0);
         const ff = sumQ(f), cc = sumQ(c);
         return { flex: f.length, flexUni: ff, colecta: c.length, colectaUni: cc, total: f.length + c.length, totalUni: ff + cc };
@@ -2931,11 +3036,10 @@
             ready:   _recuentaPorDia(r.readyFlexDetalle, r.readyColectaDetalle, dia),
             printed: _recuentaPorDia(r.printedFlexDetalle, r.printedColectaDetalle, dia),
             readyFlexDetalle:     (r.readyFlexDetalle || []).filter(x => x.entrega === dia),
-            // Colecta: no se filtra por fecha de entrega (es días posterior al despacho);
-            // toda la pendiente corresponde al día de despacho objetivo.
-            readyColectaDetalle:  (r.readyColectaDetalle || []),
+            // Colecta ahora también se filtra por su fecha de entrega (cada paquete a su día)
+            readyColectaDetalle:  (r.readyColectaDetalle || []).filter(x => x.entrega === dia),
             printedFlexDetalle:   (r.printedFlexDetalle || []).filter(x => x.entrega === dia),
-            printedColectaDetalle:(r.printedColectaDetalle || []),
+            printedColectaDetalle:(r.printedColectaDetalle || []).filter(x => x.entrega === dia),
             escanearDetalle:      (r.escanearDetalle || []).filter(x => x.entrega === dia),
         }));
     }
@@ -2952,8 +3056,10 @@
     }
 
     function toggleDiaFiltro() {
-        window._diaFiltroActivo = !window._diaFiltroActivo;
-        try { localStorage.setItem('resumen_dia_filtro', window._diaFiltroActivo ? '1' : '0'); } catch(e) {}
+        const orden = ['todos', 'hoy', 'manana'];
+        if (window._pasadoDisponible) orden.push('pasado');   // pasado solo si hay paquetes ese día
+        const i = orden.indexOf(window._diaFiltroModo);
+        window._diaFiltroModo = orden[(i + 1) % orden.length];  // i=-1 (modo ausente) → arranca en 'todos'
         if (resultadosCache?.data) renderResultados(resultadosCache.data, resultadosCache.fromCache !== false);
     }
 
@@ -2963,7 +3069,25 @@
         // (velocidad de ventas) sigue usando los datos completos (rawResultados).
         const rawResultados = resultados;
         let _diaActivo = null;
-        if (window._diaFiltroActivo) {
+        let _modo = window._diaFiltroModo || 'todos';
+
+        // Fechas AR: hoy (0), mañana (+1), pasado (+2)
+        const _arHoy = new Date(new Date().toLocaleString('en-US', { timeZone: 'America/Argentina/Buenos_Aires' }));
+        const _fechaOffset = (n) => { const d = new Date(_arHoy); d.setDate(d.getDate() + n); return _fmtDiaAR(d); };
+        const _diaHoy = _fechaOffset(0), _diaManana = _fechaOffset(1), _diaPasado = _fechaOffset(2);
+
+        // ¿Hay paquetes para "pasado"? (solo entonces entra en el ciclo)
+        const _hayEnDia = (dia) => rawResultados.some(r =>
+            (r.readyFlexDetalle || []).some(x => x.entrega === dia) ||
+            (r.readyColectaDetalle || []).some(x => x.entrega === dia) ||
+            (r.printedFlexDetalle || []).some(x => x.entrega === dia) ||
+            (r.printedColectaDetalle || []).some(x => x.entrega === dia));
+        window._pasadoDisponible = _hayEnDia(_diaPasado);
+
+        // Si quedó en 'pasado' pero ya no hay paquetes ese día, volver a 'todos'
+        if (_modo === 'pasado' && !window._pasadoDisponible) { _modo = 'todos'; window._diaFiltroModo = 'todos'; }
+
+        if (_modo !== 'todos') {
             // La caché persistida (localStorage) se guarda sin los arrays de detalle;
             // sin ellos no se puede filtrar por día → mostramos todo hasta que llegue la
             // carga fresca (que sí trae el detalle con la fecha de entrega).
@@ -2971,14 +3095,23 @@
                 (r.readyFlexDetalle?.length || 0) + (r.readyColectaDetalle?.length || 0) +
                 (r.printedFlexDetalle?.length || 0) + (r.printedColectaDetalle?.length || 0) > 0);
             if (hayDetalle) {
-                _diaActivo = _diaObjetivoConDatos(rawResultados);
+                _diaActivo = _modo === 'hoy' ? _diaHoy : _modo === 'manana' ? _diaManana : _diaPasado;
                 resultados = _filtrarResultadosPorDia(rawResultados, _diaActivo);
             }
         }
+
         const _diaBtn = document.getElementById('diaFiltroBtn');
         if (_diaBtn) {
-            _diaBtn.classList.toggle('active', !!window._diaFiltroActivo);
-            _diaBtn.querySelector('.dia-lbl').textContent = window._diaFiltroActivo ? (_etiquetaDia(_diaActivo) || 'día') : 'Todos';
+            _diaBtn.classList.remove('m-hoy', 'm-manana', 'm-pasado', 'active');
+            const lbl = _diaBtn.querySelector('.dia-lbl');
+            const dias3 = ['Dom', 'Lun', 'Mar', 'Mié', 'Jue', 'Vie', 'Sáb'];
+            if (_modo === 'hoy')          { _diaBtn.classList.add('m-hoy');    lbl.textContent = 'Hoy'; }
+            else if (_modo === 'manana')  { _diaBtn.classList.add('m-manana'); lbl.textContent = 'Mañana'; }
+            else if (_modo === 'pasado')  {
+                _diaBtn.classList.add('m-pasado');
+                const [py, pm, pd] = _diaPasado.split('-').map(Number);
+                lbl.textContent = `${dias3[new Date(py, pm - 1, pd).getDay()]} ${pd}`;
+            } else { lbl.textContent = 'Todos'; }
         }
 
         const sum = (key, sub) => resultados.reduce((a, r) => a + (r[key]?.[sub] || 0), 0);
@@ -3001,7 +3134,27 @@
         // ── HERO ──
         const heroEl = document.getElementById('hero');
         heroEl.style.display = 'block';
-        document.getElementById('heroNumber').textContent = totReady;
+        const heroNumEl = document.getElementById('heroNumber');
+        heroNumEl.textContent = totReady;
+        // Long-press en el número grande → ver TODOS los paquetes a preparar (flex+colecta,
+        // por hora, con fotos). Se wirea una sola vez (el elemento no se recrea).
+        if (!heroNumEl._lpWired) {
+            heroNumEl._lpWired = true;
+            heroNumEl.style.cursor = 'pointer';
+            heroNumEl.title = 'Mantené presionado para ver todos los paquetes a preparar';
+            const abrirTodos = () => abrirDesgloseReady('Total:todos', window._readyDesglose);
+            let hlp = null, hFired = false;
+            const hStart = () => { hFired = false; clearTimeout(hlp); hlp = setTimeout(() => { hFired = true; abrirTodos(); }, 500); };
+            const hCancel = () => clearTimeout(hlp);
+            heroNumEl.addEventListener('mousedown', e => { if (e.button === 0) hStart(); });
+            heroNumEl.addEventListener('mouseup', hCancel);
+            heroNumEl.addEventListener('mouseleave', hCancel);
+            heroNumEl.addEventListener('touchstart', () => hStart(), { passive: true });
+            heroNumEl.addEventListener('touchend', hCancel);
+            heroNumEl.addEventListener('touchmove', hCancel);
+            heroNumEl.addEventListener('contextmenu', e => { e.preventDefault(); abrirTodos(); });
+            heroNumEl.addEventListener('click', e => { if (hFired) { e.stopPropagation(); e.preventDefault(); hFired = false; } }, true);
+        }
         document.getElementById('heroSub').textContent =
             totReady === 1 ? 'paquete para imprimir' : 'paquetes para imprimir';
         document.getElementById('heroUnits').textContent =
@@ -3144,26 +3297,48 @@
         });
         window._readyDesglose['Total:flex']      = resultados.flatMap(r => r.readyFlexDetalle      || []);
         window._readyDesglose['Total:colecta']   = resultados.flatMap(r => r.readyColectaDetalle   || []);
+        // Vista combinada (flex + colecta) para el long-press del número grande del hero.
+        // Cada ítem se etiqueta con su tipo para mostrar el ícono correcto por pedido.
+        window._readyDesglose['Total:todos'] = resultados.flatMap(r => [
+            ...(r.readyFlexDetalle    || []).map(d => ({ ...d, _tipo: 'flex' })),
+            ...(r.readyColectaDetalle || []).map(d => ({ ...d, _tipo: 'colecta' })),
+        ]);
         window._printedDesglose['Total:flex']    = resultados.flatMap(r => r.printedFlexDetalle    || []);
         window._printedDesglose['Total:colecta'] = resultados.flatMap(r => r.printedColectaDetalle || []);
 
         function _wireDesgloseEl(el, mapName) {
             const key = mapName === 'printed' ? el.dataset.printed : el.dataset.fly;
             const getMap = () => mapName === 'printed' ? window._printedDesglose : window._readyDesglose;
-            const open = (e) => { e.stopPropagation(); e.preventDefault(); abrirDesgloseReady(key, getMap()); };
-            let lp;
-            el.addEventListener('touchstart', e => {
-                lp = setTimeout(() => open(e), 600);
-            }, { passive: true });
-            el.addEventListener('touchend',  () => clearTimeout(lp));
-            el.addEventListener('touchmove', () => clearTimeout(lp));
-            el.addEventListener('contextmenu', open);
-            if (mapName === 'printed') {
-                // Click simple en impresos: abre modal y frena la propagación
-                // (dblclick no funciona porque el click simple ya colapsa la card)
-                el.addEventListener('click', open);
-            } else {
-                el.addEventListener('dblclick', open);
+            const abrir = () => abrirDesgloseReady(key, getMap());
+
+            // Long-press que funciona con MOUSE (desktop) y TÁCTIL (mobile).
+            // Antes solo escuchaba touchstart/touchend → con mouse no disparaba.
+            let lp = null, lpFired = false;
+            const start = () => { lpFired = false; clearTimeout(lp); lp = setTimeout(() => { lpFired = true; abrir(); }, 500); };
+            const cancel = () => { clearTimeout(lp); };
+
+            // Mouse (mantener presionado el botón izquierdo)
+            el.addEventListener('mousedown', e => { if (e.button === 0) start(); });
+            el.addEventListener('mouseup', cancel);
+            el.addEventListener('mouseleave', cancel);
+            // Táctil
+            el.addEventListener('touchstart', () => start(), { passive: true });
+            el.addEventListener('touchend',  cancel);
+            el.addEventListener('touchmove', cancel);
+            // Click derecho también abre
+            el.addEventListener('contextmenu', e => { e.preventDefault(); abrir(); });
+
+            // Intercepta el click en fase de captura:
+            //  · si venimos de un long-press → tragarlo (que NO togglee la card)
+            //  · impresos: click simple abre el detalle
+            //  · para-imprimir: click corto se deja pasar (togglea la card como siempre)
+            el.addEventListener('click', e => {
+                if (lpFired) { e.stopPropagation(); e.preventDefault(); lpFired = false; return; }
+                if (mapName === 'printed') { e.stopPropagation(); e.preventDefault(); abrir(); }
+            }, true);
+            // Doble click sigue siendo un atajo para abrir el detalle "para preparar"
+            if (mapName !== 'printed') {
+                el.addEventListener('dblclick', e => { e.stopPropagation(); e.preventDefault(); abrir(); });
             }
         }
 
@@ -3371,6 +3546,50 @@
     // ══════════════════════════════════════════════
     //  MODAL DESGLOSE FLEX (long-press en tipo-box.flex para imprimir)
     // ══════════════════════════════════════════════
+    // ── PRUEBA U/PAQ: muestra los últimos pedidos con el desglose real y la matemática ──
+    function inicializarModalPrueba() {
+        const modal = document.getElementById('pruebaModal');
+        if (!modal) return;
+        document.getElementById('pruebaClose').onclick = () => modal.classList.remove('open');
+        modal.onclick = e => { if (e.target === modal) modal.classList.remove('open'); };
+    }
+
+    window.abrirPruebaUPaq = function() {
+        if (!resultadosCache?.data) return;
+        const catalog = buildStockCatalog();
+        // Todos los "para imprimir" (flex + colecta) con sus productos
+        const todos = [];
+        resultadosCache.data.forEach(r => {
+            (r.readyFlexDetalle    || []).forEach(d => todos.push({ ...d, tipo: '🏍️', cuenta: r.cuenta.nombre }));
+            (r.readyColectaDetalle || []).forEach(d => todos.push({ ...d, tipo: '📦', cuenta: r.cuenta.nombre }));
+        });
+        todos.sort((a, b) => (b.date || '').localeCompare(a.date || ''));
+        const totalPaq = todos.length;
+        const totalUni = todos.reduce((s, d) => s + (d.qty || 0), 0);
+        const avgGlobal = totalPaq ? (totalUni / totalPaq).toFixed(2) : '—';
+
+        const N = 12;
+        const ultimos = todos.slice(0, N);
+        let sumUlt = 0, html = '';
+        ultimos.forEach(d => {
+            sumUlt += (d.qty || 0);
+            const filas = (d.productos || []).flatMap(p => _desglosarProducto(p, catalog));
+            const filasHtml = filas.map(f => {
+                const ct = [f.color, f.talle].filter(Boolean).join(' · ');
+                const tag = f.tipo === 'conjunto' ? '<span class="pu-tag conj">conjunto</span>'
+                          : f.tipo === 'multipack' ? `<span class="pu-tag pack">×${f.mult}</span>` : '';
+                const u = f.cantidad * f.mult;
+                return `<div class="pu-row"><span class="pu-name">${escHtml(f.nombre)}${ct ? ` · <span class="fd-name-sub">${escHtml(ct)}</span>` : ''} ${tag}</span><span class="pu-u">${u}u</span></div>`;
+            }).join('');
+            html += `<div class="pu-order"><div class="pu-head"><span>#${d.orderId} · ${d.tipo} ${d.cuenta}</span><b>${d.qty} u</b></div>${filasHtml}</div>`;
+        });
+        const avgUlt = ultimos.length ? (sumUlt / ultimos.length).toFixed(2) : '—';
+        document.getElementById('pruebaSub').innerHTML =
+            `últimos ${ultimos.length}: <b>${avgUlt}</b> u/paq · global: <b>${avgGlobal}</b> (${totalPaq} paq · ${totalUni} u)`;
+        document.getElementById('pruebaList').innerHTML = html || '<div class="fd-empty">Sin datos cargados</div>';
+        document.getElementById('pruebaModal').classList.add('open');
+    };
+
     function inicializarModalFlexDesglose() {
         const modal = document.getElementById('flexDesgloseModal');
         document.getElementById('flexDesgloseClose').onclick = () => modal.classList.remove('open');
@@ -3404,31 +3623,69 @@
             .replace(/[^a-z0-9]/g, ' ').replace(/\s+/g, ' ').trim();
     }
 
-    const RESUMEN_SKU_KEY = 'resumen_sku_catalog_v1';
-    const RESUMEN_SKU_TTL = 12 * 60 * 60 * 1000; // 12 horas
+    const RESUMEN_SKU_KEY   = 'resumen_sku_catalog_v1';
+    const RESUMEN_PACKS_KEY = 'resumen_packmap_v1';
+    const RESUMEN_IMG_KEY   = 'resumen_imgmap_v1';
+    const RESUMEN_SKU_TTL   = 12 * 60 * 60 * 1000; // 12 horas
+    const CF_STOCK_URL = 'https://mikra-stock-cache.rafaelassir.workers.dev';
+    let _packMapMem = null; // combo SKU → [componentes]  (?mode=packs)
+    let _imgMapMem  = null; // SKU → url de imagen        (?mode=images)
+
+    function _fresco(key) {
+        try { const c = sessionStorage.getItem(key); return c && (Date.now() - JSON.parse(c).fetchedAt < RESUMEN_SKU_TTL); } catch(e) { return false; }
+    }
 
     async function sincronizarCatalogoBg() {
+        const needProds = !_fresco(RESUMEN_SKU_KEY);
+        const needPacks = !_fresco(RESUMEN_PACKS_KEY);
+        const needImgs  = !_fresco(RESUMEN_IMG_KEY);
+        if (needPacks === false && !_packMapMem) { try { _packMapMem = JSON.parse(sessionStorage.getItem(RESUMEN_PACKS_KEY)).packs; } catch(e) {} }
+        if (needImgs === false && !_imgMapMem)  { try { _imgMapMem  = JSON.parse(sessionStorage.getItem(RESUMEN_IMG_KEY)).images; } catch(e) {} }
+        if (!needProds && !needPacks && !needImgs) return;
         try {
-            const cached = sessionStorage.getItem(RESUMEN_SKU_KEY);
-            if (cached) {
-                const { fetchedAt } = JSON.parse(cached);
-                if (Date.now() - fetchedAt < RESUMEN_SKU_TTL) return; // fresco, no hace falta
+            const [rp, rpk, rim] = await Promise.all([
+                needProds ? fetch(CF_STOCK_URL, { cache: 'no-store' }) : Promise.resolve(null),
+                needPacks ? fetch(CF_STOCK_URL + '/?mode=packs', { cache: 'no-store' }) : Promise.resolve(null),
+                needImgs  ? fetch(CF_STOCK_URL + '/?mode=images', { cache: 'no-store' }) : Promise.resolve(null),
+            ]);
+            if (rim) {
+                const di = await rim.json();
+                if (di.success && di.images) {
+                    _imgMapMem = di.images;
+                    try { sessionStorage.setItem(RESUMEN_IMG_KEY, JSON.stringify({ images: di.images, fetchedAt: Date.now() })); } catch(e) {}
+                }
+            }
+            if (rp) {
+                const data = await rp.json();
+                if (data.success && data.products && data.products.length) {
+                    // Solo los campos necesarios para SKU lookup (reduce ~70% el tamaño)
+                    const slim = data.products.map(p => ({
+                        codigo: p.codigo, titulo: p.titulo || p.articulo || '',
+                        color: p.color || '', talle: p.talle || ''
+                    }));
+                    try { sessionStorage.setItem(RESUMEN_SKU_KEY, JSON.stringify({ products: slim, fetchedAt: Date.now() })); } catch(e) {}
+                }
+            }
+            if (rpk) {
+                const dp = await rpk.json();
+                if (dp.success && dp.packs) {
+                    _packMapMem = dp.packs;
+                    try { sessionStorage.setItem(RESUMEN_PACKS_KEY, JSON.stringify({ packs: dp.packs, fetchedAt: Date.now() })); } catch(e) {}
+                }
             }
         } catch(e) {}
-        try {
-            const resp = await fetch('https://mikra-stock-cache.rafaelassir.workers.dev', { cache: 'no-store' });
-            const data = await resp.json();
-            if (data.success && data.products && data.products.length) {
-                // Solo guardar los campos necesarios para SKU lookup (reduce ~70% el tamaño)
-                const slim = data.products.map(p => ({
-                    codigo: p.codigo,
-                    titulo: p.titulo || p.articulo || '',
-                    color:  p.color  || '',
-                    talle:  p.talle  || ''
-                }));
-                sessionStorage.setItem(RESUMEN_SKU_KEY, JSON.stringify({ products: slim, fetchedAt: Date.now() }));
-            }
-        } catch(e) {}
+    }
+
+    function _getPackMap() {
+        if (_packMapMem) return _packMapMem;
+        try { const pk = sessionStorage.getItem(RESUMEN_PACKS_KEY); if (pk) { _packMapMem = JSON.parse(pk).packs; return _packMapMem; } } catch(e) {}
+        return null;
+    }
+
+    function _getImgMap() {
+        if (_imgMapMem) return _imgMapMem;
+        try { const im = sessionStorage.getItem(RESUMEN_IMG_KEY); if (im) { _imgMapMem = JSON.parse(im).images; return _imgMapMem; } } catch(e) {}
+        return null;
     }
 
     function buildStockCatalog() {
@@ -3460,6 +3717,88 @@
 
             return { bySku, byTitle };
         } catch (e) { return null; }
+    }
+
+    // Detecta el tamaño de pack en un texto: "Pack X3", "Remera ... X3", "Blanco X2".
+    // El "X" va SEGUIDO del número (X3), así que NO confunde con talles 2XL/3XL (donde el
+    // número va antes de la X). Sin "X{n}" → 1.
+    function _parsePackX(text) {
+        const m = (text || '').match(/[xX]\s?([2-9])(?![0-9])/);
+        return m ? Number(m[1]) : 1;
+    }
+
+    // Cuántas UNIDADES físicas es un producto (misma lógica que el userscript de Ventas):
+    //   • packMap[sku] con 2+ componentes = CONJUNTO (ej. polera+calza) → unidades = nº de componentes.
+    //   • packMap[sku] con 1 componente   = multipack del MISMO ítem (ej. "Remera X3") → "X{n}" del nombre.
+    //   • sin entrada en packMap → "X{n}" del título del catálogo, y de respaldo el de la venta.
+    function _packMult(prod, catalog) {
+        const sku = prod?.sku ? String(prod.sku) : '';
+        const packMap = _getPackMap();
+        const comps = (sku && packMap) ? packMap[sku] : null;
+        const eTitle = () => { const e = (sku && catalog?.bySku) ? catalog.bySku[sku] : null; return e ? `${e.titulo || ''} ${e.color || ''}` : null; };
+        if (comps && comps.length) {
+            if (comps.length === 1) {                                   // multipack mismo ítem
+                const m = _parsePackX(eTitle());
+                return m > 1 ? m : _parsePackX(prod?.titulo);           // respaldo: título de la venta (trae "Pack X2/X3")
+            }
+            return comps.length;                                        // conjunto
+        }
+        const t = eTitle();
+        return t ? _parsePackX(t) : _parsePackX(prod?.titulo);
+    }
+
+    // Unidades REALES de un envío = suma de (cantidad × multiplicador de pack) de sus productos.
+    function _unidadesReales(productos, catalog, fallbackQty) {
+        if (!productos || !productos.length) return fallbackQty || 0;
+        return productos.reduce((a, p) => a + (p.cantidad || 1) * _packMult(p, catalog), 0);
+    }
+
+    // Descifra un producto en filas para MOSTRAR: un CONJUNTO (2+ componentes, ej. "REM + CAL")
+    // se abre en sus componentes reales (con nombre/color/talle del catálogo); un multipack
+    // ("Remera X3") queda en 1 fila con su ×N; lo normal, 1 fila. Cada fila: cantidad × mult.
+    function _desglosarProducto(prod, catalog) {
+        const sku = prod?.sku ? String(prod.sku) : '';
+        const packMap = _getPackMap();
+        const comps = (sku && packMap) ? packMap[sku] : null;
+        const cant = prod?.cantidad || 1;
+        if (comps && comps.length > 1) {
+            // CONJUNTO (2+ componentes distintos): una fila por componente, cada uno con su SKU/imagen
+            return comps.map(cs => {
+                const e = catalog?.bySku?.[String(cs)] || {};
+                return { sku: String(cs), nombre: e.titulo || String(cs), color: e.color || '', talle: e.talle || '', cantidad: cant, mult: 1, tipo: 'conjunto' };
+            });
+        }
+        if (comps && comps.length === 1) {
+            // MULTIPACK (X2/X3 del MISMO ítem): descifrar al SKU BASE del packMap.
+            // El nombre/color/talle/imagen salen del componente base (limpios),
+            // NO del título del pack (que trae "X2/X3" y ensucia el detalle).
+            const base = String(comps[0]);
+            const e = catalog?.bySku?.[base] || {};
+            const mult = _packMult(prod, catalog);
+            return [{ sku: base, nombre: e.titulo || prod?.titulo || '—', color: e.color || '', talle: e.talle || '', cantidad: cant, mult, tipo: 'multipack' }];
+        }
+        // Sin entrada en packMap → artículo normal (o multipack detectado por título del catálogo)
+        const e = catalog?.bySku?.[sku] || {};
+        const mult = _packMult(prod, catalog);
+        return [{ sku, nombre: e.titulo || prod?.titulo || '—', color: e.color || '', talle: e.talle || '', cantidad: cant, mult, tipo: mult > 1 ? 'multipack' : 'normal' }];
+    }
+
+    // Expande la lista de productos para el DESGLOSE: los conjuntos (2+ componentes) se
+    // reemplazan por un pseudo-producto por componente (con el SKU del componente, para que
+    // resolverProducto muestre su nombre/color/talle). Multipacks y normales quedan igual.
+    function _expandirParaDesglose(productos) {
+        const packMap = _getPackMap();
+        const out = [];
+        (productos || []).forEach(p => {
+            const sku = p?.sku ? String(p.sku) : '';
+            const comps = (sku && packMap) ? packMap[sku] : null;
+            if (comps && comps.length > 1) {
+                comps.forEach(cs => out.push({ sku: String(cs), titulo: '', cantidad: p.cantidad || 1 }));
+            } else {
+                out.push(p);
+            }
+        });
+        return out;
     }
 
     // Resuelve nombre/color/talle/sku de un producto contra el catálogo (SKU).
@@ -3558,7 +3897,7 @@
         });
 
         const [acct, tipo] = key.split(':');
-        const tipoLabel   = tipo === 'flex' ? '🏍️ Flex' : '📦 Colecta';
+        const tipoLabel   = tipo === 'flex' ? '🏍️ Flex' : tipo === 'colecta' ? '📦 Colecta' : '🏍️📦 Todos';
         const estadoLabel = esImpresos ? '📬 Impresos' : '🖨️ Para imprimir';
         const totalPaquetes = detalle.length;
         const totalUnidades = detalle.reduce((s, d) => s + (d.qty || 0), 0);
@@ -3566,6 +3905,18 @@
 
         document.getElementById('flexDesgloseTitle').innerHTML =
             `${tipoLabel} ${escHtml(nombre)} · ${estadoLabel}<div class="fd-modal-title-sub">${totalPaquetes} paquetes · ${totalUnidades} unidades</div>`;
+
+        const imgMap = _getImgMap();
+        // Ícono por pedido: en la vista "todos" cada venta puede ser flex o colecta
+        const iconDe = (d) => ((d._tipo || tipo) === 'colecta') ? '📦' : '🏍️';
+
+        // Miniatura por SKU (misma base ?mode=images del worker de stock)
+        const thumbHtml = (sku) => {
+            const url = (sku && imgMap) ? imgMap[String(sku)] : null;
+            return url
+                ? `<img class="fdi-thumb" src="${escHtml(url)}" loading="lazy" onerror="this.style.visibility='hidden'">`
+                : `<span class="fdi-thumb fdi-thumb-empty"></span>`;
+        };
 
         let html = '';
         if (!hasCatalog) {
@@ -3578,46 +3929,33 @@
             ordenado.forEach(d => {
                 const hora    = fmtHoraDesglose(d.date);
                 const orderId = d.orderId ? String(d.orderId) : '';
-                const prods   = ordenarProductos(d.productos, catalog);
                 const clickCls  = orderId ? ' fd-clickable' : '';
                 const orderAttr = orderId ? ` data-order="${escHtml(orderId)}"` : '';
+                const titleAttr = orderId ? ` title="Tocá para copiar #${escHtml(orderId)}"` : '';
+                const totU = d.qty || 0;
 
-                if (prods.length === 0) {
-                    html += `<div class="fd-prod-row fd-order-first${clickCls}"${orderAttr}>
-                        <span class="fd-time">${escHtml(hora)}</span>
-                        <div class="fd-name"><span class="fd-name-main fd-muted">sin detalle</span></div>
-                    </div>`;
-                    return;
+                // Desglose real (conjuntos → componentes, multipacks → ×N) igual que el modal U/PAQ
+                const filas = (d.productos || []).flatMap(p => _desglosarProducto(p, catalog));
+                let filasHtml = '';
+                if (!filas.length) {
+                    filasHtml = `<div class="fdi-prod">${thumbHtml(null)}<span class="pu-name fd-muted">sin detalle</span></div>`;
+                } else {
+                    filas.forEach(f => {
+                        const ct  = [f.color, f.talle].filter(Boolean).join(' · ');
+                        const tag = f.tipo === 'conjunto' ? '<span class="pu-tag conj">conjunto</span>'
+                                  : f.tipo === 'multipack' ? `<span class="pu-tag pack">×${f.mult}</span>` : '';
+                        const u   = f.cantidad * f.mult;
+                        filasHtml += `<div class="fdi-prod">${thumbHtml(f.sku)}` +
+                            `<span class="pu-name">${escHtml(f.nombre)}${ct ? ` · <span class="fd-name-sub">${escHtml(ct)}</span>` : ''} ${tag}</span>` +
+                            `<span class="pu-u">${u}u</span></div>`;
+                    });
                 }
 
-                prods.forEach((it, idx) => {
-                    const { sku, isTech, nom, color, talle, cantidad: cant } = resolverProducto(it, catalog);
-
-                    const cantHtml = cant > 1 ? `<span class="fd-q">×${cant}</span>` : '';
-                    const firstCls = idx === 0 ? ' fd-order-first' : '';
-                    const timeCell = idx === 0 ? escHtml(hora) : '';
-
-                    // Tech (SKU empieza con 5): mostrar SKU en el título y en lugar del color
-                    const skuSuffix = isTech ? ` <span class="fd-muted" style="font-size:10px">[${escHtml(sku)}]</span>` : '';
-                    const subParts = [];
-                    if (isTech) {
-                        subParts.push(`<span class="fd-c">${escHtml(sku)}</span>`);
-                    } else {
-                        if (color) subParts.push(`<span class="fd-c">${escHtml(color)}</span>`);
-                        if (talle) subParts.push(`<span class="fd-t">${escHtml(talle)}</span>`);
-                    }
-                    const subHtml = subParts.length
-                        ? `<span class="fd-name-sub">${subParts.join('<span style="color:var(--muted)"> · </span>')}</span>`
-                        : '';
-
-                    html += `<div class="fd-prod-row${firstCls}${clickCls}"${orderAttr}>
-                        <span class="fd-time">${timeCell}</span>
-                        <div class="fd-name">
-                            <span class="fd-name-main">${escHtml(nom)}${skuSuffix}${cantHtml}</span>
-                            ${subHtml}
-                        </div>
-                    </div>`;
-                });
+                const headNum = orderId ? `#${escHtml(orderId)}` : 'sin nº';
+                html += `<div class="pu-order${clickCls}"${orderAttr}${titleAttr}>` +
+                    `<div class="pu-head"><span>${headNum}${hora ? ` <span class="fd-muted" style="font-weight:400">· ${escHtml(hora)}</span>` : ''} ${iconDe(d)}</span><b>${totU} u</b></div>` +
+                    filasHtml +
+                `</div>`;
             });
         }
 
@@ -3752,6 +4090,7 @@
     inicializarAjustes();
     inicializarModalEscanear();
     inicializarModalFlexDesglose();
+    inicializarModalPrueba();
     wireCompareBtn();
     aplicarPrefs();
     resultadosCache = leerResultadosCache();
