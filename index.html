@@ -3573,13 +3573,12 @@
         let sumUlt = 0, html = '';
         ultimos.forEach(d => {
             sumUlt += (d.qty || 0);
-            const filas = (d.productos || []).flatMap(p => _desglosarProducto(p, catalog));
-            const filasHtml = filas.map(f => {
-                const ct = [f.color, f.talle].filter(Boolean).join(' · ');
-                const tag = f.tipo === 'conjunto' ? '<span class="pu-tag conj">conjunto</span>'
-                          : f.tipo === 'multipack' ? `<span class="pu-tag pack">×${f.mult}</span>` : '';
-                const u = f.cantidad * f.mult;
-                return `<div class="pu-row"><span class="pu-name">${escHtml(f.nombre)}${ct ? ` · <span class="fd-name-sub">${escHtml(ct)}</span>` : ''} ${tag}</span><span class="pu-u">${u}u</span></div>`;
+            const filas = _agruparOrdenarFilas((d.productos || []).flatMap(p => _desglosarProducto(p, catalog)));
+            const filasHtml = filas.map(g => {
+                const ct = [g.color, g.talle].filter(Boolean).join(' · ');
+                const tag = g.u > 1 ? `<span class="pu-tag pack">×${g.u}</span>`
+                          : g.conj ? '<span class="pu-tag conj">conjunto</span>' : '';
+                return `<div class="pu-row"><span class="pu-name">${escHtml(g.nombre)}${ct ? ` · <span class="fd-name-sub">${escHtml(ct)}</span>` : ''} ${tag}</span><span class="pu-u">${g.u}u</span></div>`;
             }).join('');
             html += `<div class="pu-order"><div class="pu-head"><span>#${d.orderId} · ${d.tipo} ${d.cuenta}</span><b>${d.qty} u</b></div>${filasHtml}</div>`;
         });
@@ -3786,6 +3785,32 @@
     // Expande la lista de productos para el DESGLOSE: los conjuntos (2+ componentes) se
     // reemplazan por un pseudo-producto por componente (con el SKU del componente, para que
     // resolverProducto muestre su nombre/color/talle). Multipacks y normales quedan igual.
+    // Orden de talles (igual que el userscript PRINCIPAL): XS<S<M<L<XL<2XL<3XL; numéricos por su número.
+    function _talleOrder(t) {
+        const s = (t || '').toUpperCase().trim();
+        const m = { XS: 50, S: 51, M: 52, L: 53, XL: 54, XXL: 55, '2XL': 55, XXXL: 56, '3XL': 56 };
+        if (m[s] !== undefined) return m[s];
+        const n = parseFloat(s); return isNaN(n) ? 999 : n;
+    }
+
+    // Agrupa filas idénticas (mismo artículo/color/talle) sumando unidades → una sola fila con ×N,
+    // y ordena: artículo A-Z → talle (menor a mayor) → color A-Z. Igual criterio que el PRINCIPAL.
+    function _agruparOrdenarFilas(filas) {
+        const grp = new Map();
+        (filas || []).forEach(f => {
+            const key = `${f.sku}|${f.nombre}|${f.color}|${f.talle}`;
+            const u = (f.cantidad || 1) * (f.mult || 1);
+            const ex = grp.get(key);
+            if (ex) { ex.u += u; ex.conj = ex.conj || f.tipo === 'conjunto'; }
+            else grp.set(key, { sku: f.sku, nombre: f.nombre, color: f.color, talle: f.talle, u, conj: f.tipo === 'conjunto' });
+        });
+        return [...grp.values()].sort((a, b) => {
+            const t = (a.nombre || '').localeCompare(b.nombre || '', 'es'); if (t) return t;
+            const ta = _talleOrder(a.talle), tb = _talleOrder(b.talle); if (ta !== tb) return ta - tb;
+            return (a.color || '').localeCompare(b.color || '', 'es');
+        });
+    }
+
     function _expandirParaDesglose(productos) {
         const packMap = _getPackMap();
         const out = [];
@@ -3935,19 +3960,18 @@
                 const totU = d.qty || 0;
 
                 // Desglose real (conjuntos → componentes, multipacks → ×N) igual que el modal U/PAQ
-                const filas = (d.productos || []).flatMap(p => _desglosarProducto(p, catalog));
+                const filas = _agruparOrdenarFilas((d.productos || []).flatMap(p => _desglosarProducto(p, catalog)));
                 let filasHtml = '';
                 if (!filas.length) {
                     filasHtml = `<div class="fdi-prod">${thumbHtml(null)}<span class="pu-name fd-muted">sin detalle</span></div>`;
                 } else {
-                    filas.forEach(f => {
-                        const ct  = [f.color, f.talle].filter(Boolean).join(' · ');
-                        const tag = f.tipo === 'conjunto' ? '<span class="pu-tag conj">conjunto</span>'
-                                  : f.tipo === 'multipack' ? `<span class="pu-tag pack">×${f.mult}</span>` : '';
-                        const u   = f.cantidad * f.mult;
-                        filasHtml += `<div class="fdi-prod">${thumbHtml(f.sku)}` +
-                            `<span class="pu-name">${escHtml(f.nombre)}${ct ? ` · <span class="fd-name-sub">${escHtml(ct)}</span>` : ''} ${tag}</span>` +
-                            `<span class="pu-u">${u}u</span></div>`;
+                    filas.forEach(g => {
+                        const ct  = [g.color, g.talle].filter(Boolean).join(' · ');
+                        const tag = g.u > 1 ? `<span class="pu-tag pack">×${g.u}</span>`
+                                  : g.conj ? '<span class="pu-tag conj">conjunto</span>' : '';
+                        filasHtml += `<div class="fdi-prod">${thumbHtml(g.sku)}` +
+                            `<span class="pu-name">${escHtml(g.nombre)}${ct ? ` · <span class="fd-name-sub">${escHtml(ct)}</span>` : ''} ${tag}</span>` +
+                            `<span class="pu-u">${g.u}u</span></div>`;
                     });
                 }
 
