@@ -566,6 +566,9 @@
             text-align: center;
             position: relative;
             overflow: hidden;
+            /* Al mantener apretado (long-press) no seleccionar texto ni mostrar el menú de copiar */
+            -webkit-user-select: none; user-select: none;
+            -webkit-touch-callout: none; -webkit-tap-highlight-color: transparent;
         }
         .tipo-box::before {
             content: '';
@@ -1105,6 +1108,51 @@
         .fd-t { color: var(--green); }
         .fd-q { color: var(--yellow); font-weight: 700; font-size: 11px; margin-left: 4px; }
         .fd-muted { color: var(--muted); font-style: italic; font-size: 11px; }
+
+        /* Toggle Detalle / Resumen en el desglose */
+        .fd-toggle-row { display: flex; gap: 6px; margin-bottom: 10px; }
+        .fd-toggle-btn {
+            flex: 1; background: var(--surface-2); color: var(--muted-2);
+            border: 1px solid var(--border); border-radius: 20px; padding: 7px 10px;
+            font-size: 12px; font-weight: 700; cursor: pointer; font-family: inherit;
+            -webkit-tap-highlight-color: transparent;
+        }
+        .fd-toggle-btn.active { background: var(--blue); color: #001018; border-color: var(--blue); }
+
+        /* Filas del RESUMEN por artículo (barra proporcional a la cantidad) */
+        .fd-res-row {
+            position: relative; display: flex; justify-content: space-between; align-items: center;
+            gap: 10px; padding: 8px 10px; border-radius: 8px; margin-bottom: 4px;
+            background: var(--surface-2); overflow: hidden;
+        }
+        .fd-res-bar { position: absolute; inset: 0 auto 0 0; background: rgba(64,196,255,0.14); z-index: 0; }
+        .fd-res-row .fdi-thumb { position: relative; z-index: 1; flex-shrink: 0; }
+        .fd-res-name { position: relative; z-index: 1; flex: 1; font-size: 13px; color: var(--text); min-width: 0; }
+        .fd-res-qty { position: relative; z-index: 1; font-family: 'Space Mono', monospace; font-weight: 700; font-size: 14px; color: var(--yellow); flex-shrink: 0; }
+        .fd-res-total { font-size: 11px; color: var(--muted); margin: 2px 2px 8px; }
+        .fd-res-item { margin-bottom: 4px; }
+        .fd-res-item .fd-res-row { margin-bottom: 0; }
+        .fd-res-row.fd-res-exp { cursor: pointer; -webkit-tap-highlight-color: transparent; }
+        .fd-res-caret { display: inline-block; margin-left: 6px; font-size: 10px; color: var(--muted); transition: transform .15s; }
+        .fd-res-row.abierto .fd-res-caret { transform: rotate(90deg); }
+        /* Sub-lista de colores de un artículo (aparece al tocar) */
+        .fd-res-colores { margin: 2px 0 4px 22px; display: flex; flex-direction: column; gap: 3px; }
+        .fd-res-colores[hidden] { display: none; }
+        .fd-res-color {
+            position: relative; display: flex; align-items: center; gap: 8px;
+            padding: 5px 8px; border-radius: 7px; background: rgba(255,255,255,0.03); overflow: hidden;
+        }
+        .fd-res-cbar { position: absolute; inset: 0 auto 0 0; background: rgba(255,230,0,0.10); z-index: 0; }
+        .fd-res-color .fdi-thumb { position: relative; z-index: 1; width: 26px; height: 26px; flex-shrink: 0; }
+        .fd-res-cname { position: relative; z-index: 1; flex: 1; font-size: 12px; color: var(--muted-2); min-width: 0; }
+        .fd-res-cqty { position: relative; z-index: 1; font-family: 'Space Mono', monospace; font-weight: 700; font-size: 12px; color: var(--yellow); flex-shrink: 0; }
+        .fd-res-more {
+            width: 100%; margin: 6px 0 2px; padding: 9px 10px; border-radius: 8px;
+            background: var(--surface-2); color: var(--blue); border: 1px dashed var(--border);
+            font-size: 12px; font-weight: 700; cursor: pointer; font-family: inherit;
+            -webkit-tap-highlight-color: transparent;
+        }
+        .fd-res-more:active { background: var(--surface); }
         .fd-empty {
             text-align: center;
             color: var(--muted);
@@ -1457,6 +1505,10 @@
     <div class="modal-overlay" id="flexDesgloseModal">
         <div class="modal-sheet">
             <div class="modal-title"><span id="flexDesgloseTitle" class="fd-modal-title-text">Flex</span> <button class="modal-close" id="flexDesgloseClose">×</button></div>
+            <div class="fd-toggle-row">
+                <button class="fd-toggle-btn" id="fdToggleDetalle" onclick="setDesgloseVista('detalle')">📋 Detalle</button>
+                <button class="fd-toggle-btn" id="fdToggleResumen" onclick="setDesgloseVista('resumen')">📊 Resumen</button>
+            </div>
             <div id="flexDesgloseList"></div>
         </div>
     </div>
@@ -3614,6 +3666,17 @@
                 flash();
             }
         });
+
+        // Resumen: tocar un artículo expandible → mostrar/ocultar su desglose por color
+        document.getElementById('flexDesgloseList').addEventListener('click', e => {
+            const row = e.target.closest('.fd-res-row.fd-res-exp');
+            if (!row) return;
+            const item = row.closest('.fd-res-item');
+            const cols = item && item.querySelector('.fd-res-colores');
+            if (!cols) return;
+            cols.hidden = !cols.hidden;
+            row.classList.toggle('abierto', !cols.hidden);
+        });
     }
 
     function _normCatTitle(s) {
@@ -3931,60 +3994,151 @@
         document.getElementById('flexDesgloseTitle').innerHTML =
             `${tipoLabel} ${escHtml(nombre)} · ${estadoLabel}<div class="fd-modal-title-sub">${totalPaquetes} paquetes · ${totalUnidades} unidades</div>`;
 
+        window._desgloseState = { ordenado, catalog, hasCatalog, esImpresos, tipo };
+        setDesgloseVista('detalle'); // siempre arranca en Detalle (no recuerda la última elección)
+        document.getElementById('flexDesgloseModal').classList.add('open');
+    };
+
+    // Toggle Detalle / Resumen dentro del modal de desglose.
+    window.setDesgloseVista = function(vista) {
+        window._desgloseVista = vista;
+        const st = window._desgloseState;
+        if (!st) return;
+        const bd = document.getElementById('fdToggleDetalle');
+        const br = document.getElementById('fdToggleResumen');
+        if (bd) bd.classList.toggle('active', vista === 'detalle');
+        if (br) br.classList.toggle('active', vista === 'resumen');
+        document.getElementById('flexDesgloseList').innerHTML =
+            (vista === 'resumen') ? _desgloseResumenHTML(st) : _desgloseDetalleHTML(st);
+    };
+
+    function _fdThumb(sku, imgMap) {
+        const url = (sku && imgMap) ? imgMap[String(sku)] : null;
+        return url
+            ? `<img class="fdi-thumb" src="${escHtml(url)}" loading="lazy" onerror="this.style.visibility='hidden'">`
+            : `<span class="fdi-thumb fdi-thumb-empty"></span>`;
+    }
+
+    // Los SKU que empiezan con 5 son TECNOLOGÍA → nunca se muestran en el desglose (ni detalle ni resumen).
+    function _esTecSku(sku) { return /^5/.test(String(sku || '')); }
+
+    function _desgloseDetalleHTML(st) {
+        const { ordenado, catalog, hasCatalog, esImpresos, tipo } = st;
         const imgMap = _getImgMap();
-        // Ícono por pedido: en la vista "todos" cada venta puede ser flex o colecta
         const iconDe = (d) => ((d._tipo || tipo) === 'colecta') ? '📦' : '🏍️';
-
-        // Miniatura por SKU (misma base ?mode=images del worker de stock)
-        const thumbHtml = (sku) => {
-            const url = (sku && imgMap) ? imgMap[String(sku)] : null;
-            return url
-                ? `<img class="fdi-thumb" src="${escHtml(url)}" loading="lazy" onerror="this.style.visibility='hidden'">`
-                : `<span class="fdi-thumb fdi-thumb-empty"></span>`;
-        };
-
         let html = '';
-        if (!hasCatalog) {
-            html += `<div class="fd-subtitle">⚠️ Sin catálogo — abrí Control de stock primero</div>`;
-        }
-
+        if (!hasCatalog) html += `<div class="fd-subtitle">⚠️ Sin catálogo — abrí Control de stock primero</div>`;
         if (!ordenado.length) {
             html += `<div class="fd-empty">${esImpresos ? 'No hay impresos pendientes 🎉' : 'No hay paquetes para imprimir 🎉'}</div>`;
-        } else {
-            ordenado.forEach(d => {
-                const hora    = fmtHoraDesglose(d.date);
-                const orderId = d.orderId ? String(d.orderId) : '';
-                const clickCls  = orderId ? ' fd-clickable' : '';
-                const orderAttr = orderId ? ` data-order="${escHtml(orderId)}"` : '';
-                const titleAttr = orderId ? ` title="Tocá para copiar #${escHtml(orderId)}"` : '';
-                const totU = d.qty || 0;
-
-                // Desglose real (conjuntos → componentes, multipacks → ×N) igual que el modal U/PAQ
-                const filas = _agruparOrdenarFilas((d.productos || []).flatMap(p => _desglosarProducto(p, catalog)));
-                let filasHtml = '';
-                if (!filas.length) {
-                    filasHtml = `<div class="fdi-prod">${thumbHtml(null)}<span class="pu-name fd-muted">sin detalle</span></div>`;
-                } else {
-                    filas.forEach(g => {
-                        const ct  = [g.color, g.talle].filter(Boolean).join(' · ');
-                        const tag = g.u > 1 ? `<span class="pu-tag pack">×${g.u}</span>`
-                                  : g.conj ? '<span class="pu-tag conj">conjunto</span>' : '';
-                        filasHtml += `<div class="fdi-prod">${thumbHtml(g.sku)}` +
-                            `<span class="pu-name">${escHtml(g.nombre)}${ct ? ` · <span class="fd-name-sub">${escHtml(ct)}</span>` : ''} ${tag}</span>` +
-                            `<span class="pu-u">${g.u}u</span></div>`;
-                    });
-                }
-
-                const headNum = orderId ? `#${escHtml(orderId)}` : 'sin nº';
-                html += `<div class="pu-order${clickCls}"${orderAttr}${titleAttr}>` +
-                    `<div class="pu-head"><span>${headNum}${hora ? ` <span class="fd-muted" style="font-weight:400">· ${escHtml(hora)}</span>` : ''} ${iconDe(d)}</span><b>${totU} u</b></div>` +
-                    filasHtml +
-                `</div>`;
-            });
+            return html;
         }
+        ordenado.forEach(d => {
+            const hora    = fmtHoraDesglose(d.date);
+            const orderId = d.orderId ? String(d.orderId) : '';
+            const clickCls  = orderId ? ' fd-clickable' : '';
+            const orderAttr = orderId ? ` data-order="${escHtml(orderId)}"` : '';
+            const titleAttr = orderId ? ` title="Tocá para copiar #${escHtml(orderId)}"` : '';
+            // Filas descifradas, sin tecnología (SKU 5…); el total se recalcula sobre lo visible.
+            const filas = _agruparOrdenarFilas((d.productos || []).flatMap(p => _desglosarProducto(p, catalog)))
+                .filter(g => !_esTecSku(g.sku));
+            if (!filas.length) return; // pedido 100% tecnología → no se muestra
+            const totU = filas.reduce((s, g) => s + (g.u || 0), 0);
+            let filasHtml = '';
+            filas.forEach(g => {
+                const ct  = [g.color, g.talle].filter(Boolean).join(' · ');
+                const tag = g.u > 1 ? `<span class="pu-tag pack">×${g.u}</span>`
+                          : g.conj ? '<span class="pu-tag conj">conjunto</span>' : '';
+                filasHtml += `<div class="fdi-prod">${_fdThumb(g.sku, imgMap)}` +
+                    `<span class="pu-name">${escHtml(g.nombre)}${ct ? ` · <span class="fd-name-sub">${escHtml(ct)}</span>` : ''} ${tag}</span>` +
+                    `<span class="pu-u">${g.u}u</span></div>`;
+            });
+            const headNum = orderId ? `#${escHtml(orderId)}` : 'sin nº';
+            html += `<div class="pu-order${clickCls}"${orderAttr}${titleAttr}>` +
+                `<div class="pu-head"><span>${headNum}${hora ? ` <span class="fd-muted" style="font-weight:400">· ${escHtml(hora)}</span>` : ''} ${iconDe(d)}</span><b>${totU} u</b></div>` +
+                filasHtml +
+            `</div>`;
+        });
+        if (!html) html = `<div class="fd-empty">Sin artículos para mostrar</div>`;
+        return html;
+    }
 
-        document.getElementById('flexDesgloseList').innerHTML = html;
-        document.getElementById('flexDesgloseModal').classList.add('open');
+    // Fila de un artículo en el resumen (+ su sub-lista de colores, oculta hasta tocar).
+    function _resItemHTML(nombre, e, maxU, imgMap) {
+        const pct = Math.max(6, Math.round(e.u / maxU * 100));
+        const colores = [...e.colores.entries()].sort((a, b) => b[1].u - a[1].u);
+        const expandible = colores.length > 1;
+        const caret = expandible ? '<span class="fd-res-caret">▸</span>' : '';
+        let colHtml = '';
+        if (expandible) {
+            const maxC = colores[0][1].u;
+            colHtml = '<div class="fd-res-colores" hidden>' + colores.map(([cn, ce]) => {
+                const cp = Math.max(8, Math.round(ce.u / maxC * 100));
+                return `<div class="fd-res-color"><div class="fd-res-cbar" style="width:${cp}%"></div>` +
+                    _fdThumb(ce.sku, imgMap) +
+                    `<span class="fd-res-cname">${escHtml(cn)}</span>` +
+                    `<span class="fd-res-cqty">${ce.u}</span></div>`;
+            }).join('') + '</div>';
+        }
+        return `<div class="fd-res-item">` +
+            `<div class="fd-res-row${expandible ? ' fd-res-exp' : ''}"><div class="fd-res-bar" style="width:${pct}%"></div>` +
+                _fdThumb(e.sku, imgMap) +
+                `<span class="fd-res-name">${escHtml(nombre)}${caret}</span>` +
+                `<span class="fd-res-qty">${e.u}</span></div>` +
+            colHtml +
+        `</div>`;
+    }
+
+    // RESUMEN: agrupa por ARTÍCULO (ignora talle; guarda desglose por color), ordena de mayor a menor.
+    // Muestra directo los de 3+ unidades; los de 1–2 quedan detrás de "Cargar más".
+    function _desgloseResumenHTML(st) {
+        const { ordenado, catalog } = st;
+        const imgMap = _getImgMap();
+        const agg = new Map(); // nombre → { u, sku, colores: Map<color,{u,sku}> }
+        ordenado.forEach(d => {
+            (d.productos || []).flatMap(p => _desglosarProducto(p, catalog)).forEach(g => {
+                if (_esTecSku(g.sku)) return; // tecnología: nunca
+                const key = g.nombre || '—';
+                const u = (g.cantidad || 1) * (g.mult || 1);
+                const e = agg.get(key) || { u: 0, sku: g.sku, colores: new Map() };
+                e.u += u;
+                if (!e.sku) e.sku = g.sku;
+                const ck = g.color || '—';
+                const ce = e.colores.get(ck) || { u: 0, sku: g.sku };
+                ce.u += u;
+                if (!ce.sku) ce.sku = g.sku;
+                e.colores.set(ck, ce);
+                agg.set(key, e);
+            });
+        });
+        const arr = [...agg.entries()].sort((a, b) => b[1].u - a[1].u);
+        if (!arr.length) return '<div class="fd-empty">Sin datos para resumir</div>';
+        const maxU = arr[0][1].u;
+        const totalU = arr.reduce((s, [, e]) => s + e.u, 0);
+        const principales = arr.filter(([, e]) => e.u >= 3);
+        const resto        = arr.filter(([, e]) => e.u < 3);
+
+        let html = `<div class="fd-res-total">${arr.length} artículos · ${totalU} u · mostrando 3+</div>`;
+        if (principales.length) {
+            html += principales.map(([n, e]) => _resItemHTML(n, e, maxU, imgMap)).join('');
+        } else {
+            html += `<div class="fd-subtitle">Todavía nada con 3+ unidades</div>`;
+        }
+        if (resto.length) {
+            const restoU = resto.reduce((s, [, e]) => s + e.u, 0);
+            html += `<button class="fd-res-more" id="fdResMoreBtn" onclick="mostrarResumenResto()">➕ Cargar ${resto.length} con 1–2 u (${restoU} u)</button>`;
+            html += `<div id="fdResResto" hidden>` +
+                resto.map(([n, e]) => _resItemHTML(n, e, maxU, imgMap)).join('') +
+            `</div>`;
+        }
+        return html;
+    }
+
+    // Botón "Cargar más": revela los artículos de 1–2 unidades.
+    window.mostrarResumenResto = function() {
+        const resto = document.getElementById('fdResResto');
+        const btn   = document.getElementById('fdResMoreBtn');
+        if (resto) resto.hidden = false;
+        if (btn) btn.style.display = 'none';
     };
 
     // Alias por compatibilidad
