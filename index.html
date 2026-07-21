@@ -1160,6 +1160,76 @@
             padding: 24px 0;
         }
 
+        /* ── MODAL ESCÁNER ── */
+        .scan-cam {
+            position: relative; width: 100%; aspect-ratio: 4/3; max-height: 46vh;
+            background: #000; border-radius: 12px; overflow: hidden; margin-bottom: 10px;
+        }
+        .scan-cam video { width: 100%; height: 100%; object-fit: cover; display: block; }
+        .scan-frame {
+            position: absolute; inset: 18% 14%; border: 3px solid rgba(255,230,0,.85);
+            border-radius: 14px; box-shadow: 0 0 0 100vmax rgba(0,0,0,.35); pointer-events: none;
+        }
+        .scan-zoom { display: flex; align-items: center; gap: 8px; margin: 0 2px 8px; }
+        .scan-zoom span { font-size: 14px; }
+        .scan-zoom input[type=range] { flex: 1; accent-color: var(--yellow); height: 22px; }
+        .scan-torch { background: var(--surface-2); border: 1px solid var(--border); border-radius: 8px;
+            font-size: 15px; width: 34px; height: 30px; cursor: pointer; flex-shrink: 0; }
+        .scan-torch.on { background: rgba(255,230,0,.2); border-color: var(--yellow); }
+        .scan-status { text-align: center; font-size: 13px; color: var(--muted-2); margin-bottom: 10px; min-height: 18px; }
+        .scan-manual { display: flex; gap: 8px; margin-bottom: 8px; }
+        .scan-manual input {
+            flex: 1; min-width: 0; background: var(--surface-2); border: 1px solid var(--border);
+            border-radius: 10px; padding: 10px 12px; color: var(--text); font-size: 14px; font-family: inherit;
+        }
+        .scan-manual button {
+            background: var(--blue); color: #001018; border: none; border-radius: 10px;
+            padding: 0 16px; font-size: 13px; font-weight: 700; cursor: pointer; font-family: inherit; flex-shrink: 0;
+        }
+        .scan-raw { font-family: 'Space Mono', monospace; font-size: 10px; color: var(--muted);
+            word-break: break-all; margin-bottom: 8px; opacity: .7; }
+        .scan-raw:empty { display: none; }
+
+        /* Tarjeta de resultado del escaneo */
+        .sc-card { border: 1px solid var(--border); border-radius: 14px; overflow: hidden; background: var(--surface); }
+        .sc-card.mikra { border-color: var(--blue); }
+        .sc-card.chaya { border-color: var(--pink, #ff5ea8); }
+        .sc-top { display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 10px 12px; }
+        .sc-card.mikra .sc-top { background: rgba(64,196,255,.12); }
+        .sc-card.chaya .sc-top { background: rgba(255,94,168,.12); }
+        .sc-cuenta { font-size: 15px; font-weight: 800; letter-spacing: -.2px; }
+        .sc-card.mikra .sc-cuenta { color: var(--blue); }
+        .sc-card.chaya .sc-cuenta { color: var(--pink, #ff5ea8); }
+        .sc-logistic { font-size: 12px; font-weight: 700; color: var(--muted-2); background: var(--surface-2);
+            padding: 4px 10px; border-radius: 20px; white-space: nowrap; }
+        .sc-body { padding: 10px 12px; display: flex; flex-direction: column; gap: 8px; }
+        .sc-order { display: flex; align-items: center; gap: 8px; font-family: 'Space Mono', monospace;
+            font-size: 15px; font-weight: 700; color: var(--yellow); cursor: pointer; }
+        .sc-order .sc-copy { font-size: 11px; color: var(--muted); border: 1px solid var(--border);
+            border-radius: 6px; padding: 2px 6px; }
+        .sc-meta { font-size: 12px; color: var(--muted-2); display: flex; flex-wrap: wrap; gap: 4px 12px; }
+        .sc-estado { font-size: 12.5px; font-weight: 700; padding: 6px 10px; border-radius: 8px;
+            background: var(--surface-2); color: var(--text); }
+        .sc-estado.ok { background: rgba(52,211,153,.15); color: var(--green); }
+        .sc-estado.warn { background: rgba(255,159,10,.15); color: var(--orange); }
+        .sc-estado.bad { background: rgba(255,84,84,.15); color: var(--red); }
+        .sc-items { display: flex; flex-direction: column; gap: 6px; }
+        .sc-item { display: flex; align-items: center; gap: 9px; background: var(--surface-2);
+            border-radius: 10px; padding: 6px 8px; }
+        .sc-item .fdi-thumb { width: 42px; height: 42px; }
+        .sc-item-info { flex: 1; min-width: 0; }
+        .sc-item-title { font-size: 12.5px; color: var(--text); font-weight: 600; line-height: 1.25; }
+        .sc-item-sub { font-size: 11px; color: var(--muted); margin-top: 1px; }
+        .sc-item-qty { font-family: 'Space Mono', monospace; font-weight: 700; font-size: 14px;
+            color: var(--yellow); flex-shrink: 0; }
+        .sc-dir { font-size: 12.5px; color: var(--text); line-height: 1.35; }
+        .sc-dir .sc-dir-ref { color: var(--muted); font-size: 11.5px; }
+        .sc-err { text-align: center; padding: 20px 12px; color: var(--muted-2); font-size: 13px; }
+        .sc-err b { color: var(--text); }
+        .scan-again { width: 100%; margin-top: 10px; padding: 11px; border-radius: 10px;
+            background: var(--surface-2); color: var(--blue); border: 1px dashed var(--border);
+            font-size: 13px; font-weight: 700; cursor: pointer; font-family: inherit; }
+
         /* ── MODAL PRUEBA U/PAQ ── */
         .pu-order { border:1px solid var(--border); border-radius:10px; padding:8px 10px; margin-bottom:8px; background:rgba(255,255,255,0.02); }
         .pu-head { display:flex; justify-content:space-between; align-items:baseline; font-size:12px; color:var(--muted-2); margin-bottom:5px; }
@@ -1335,6 +1405,7 @@
         <div class="header-title">📦 <span>Despachos</span></div>
         <div class="header-right">
             <div class="header-time" id="headerTime">—</div>
+            <button class="gear-btn" id="scanBtn" aria-label="Escanear envío" title="Escanear etiqueta">📷</button>
             <button class="gear-btn" id="gearBtn" aria-label="Ajustes">⚙️</button>
         </div>
         <div class="top-progress" id="topProgress"><div class="top-progress-fill" id="topProgressFill"></div></div>
@@ -1517,6 +1588,30 @@
         <div class="modal-sheet">
             <div class="modal-title"><span class="fd-modal-title-text">🧪 Prueba U/PAQ <div class="fd-modal-title-sub" id="pruebaSub"></div></span> <button class="modal-close" id="pruebaClose">×</button></div>
             <div id="pruebaList"></div>
+        </div>
+    </div>
+
+    <div class="modal-overlay" id="scanModal">
+        <div class="modal-sheet">
+            <div class="modal-title"><span class="fd-modal-title-text">📷 Escanear envío</span> <button class="modal-close" id="scanClose">×</button></div>
+            <div class="scan-cam" id="scanCam">
+                <video id="scanVideo" playsinline muted></video>
+                <div class="scan-frame"></div>
+                <canvas id="scanCanvas" hidden></canvas>
+            </div>
+            <div class="scan-zoom" id="scanZoom" hidden>
+                <span>🔍</span>
+                <input type="range" id="scanZoomRange" min="1" max="4" step="0.1" value="1">
+                <button type="button" class="scan-torch" id="scanTorch" hidden title="Linterna">🔦</button>
+            </div>
+            <div class="scan-status" id="scanStatus">Iniciando cámara…</div>
+            <div class="scan-manual">
+                <input id="scanManual" type="text" inputmode="numeric" autocomplete="off"
+                       placeholder="…o pegá el número de envío / venta">
+                <button id="scanManualBtn">Buscar</button>
+            </div>
+            <div class="scan-raw" id="scanRaw"></div>
+            <div id="scanResult"></div>
         </div>
     </div>
 
@@ -3606,6 +3701,455 @@
         modal.onclick = e => { if (e.target === modal) modal.classList.remove('open'); };
     }
 
+    // ══════════════════════════════════════════════
+    //  ESCÁNER DE ETIQUETAS (cámara → detalle de la venta)
+    // ══════════════════════════════════════════════
+    const SELLER_IDS = { 'Mikra': '667099747', 'Chaya': '215796327' };
+    let _zxingReader = null, _zxingPromise = null, _scanHandled = false, _audioCtx = null, _scanTrack = null;
+
+    // Bip de escaneo (Web Audio). Se "desbloquea" con el toque del botón 📷.
+    function _desbloquearAudio() {
+        try {
+            if (!_audioCtx) _audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+            if (_audioCtx.state === 'suspended') _audioCtx.resume();
+        } catch (e) {}
+    }
+    function bipEscaneo() {
+        try {
+            if (!_audioCtx) _audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+            if (_audioCtx.state === 'suspended') _audioCtx.resume();
+            const o = _audioCtx.createOscillator(), g = _audioCtx.createGain();
+            o.type = 'square'; o.frequency.value = 1180;
+            const t = _audioCtx.currentTime;
+            g.gain.setValueAtTime(0.0001, t);
+            g.gain.exponentialRampToValueAtTime(0.15, t + 0.01);
+            g.gain.exponentialRampToValueAtTime(0.0001, t + 0.16);
+            o.connect(g); g.connect(_audioCtx.destination);
+            o.start(t); o.stop(t + 0.17);
+        } catch (e) {}
+    }
+
+    function inicializarScanner() {
+        const modal = document.getElementById('scanModal');
+        if (!modal) return;
+        const btn = document.getElementById('scanBtn');
+        if (btn) btn.onclick = abrirScanner;
+        document.getElementById('scanClose').onclick = cerrarScanner;
+        modal.onclick = e => { if (e.target === modal) cerrarScanner(); };
+        document.getElementById('scanManualBtn').onclick = () => {
+            const v = document.getElementById('scanManual').value.trim();
+            if (v) buscarDesdeManual(v);
+        };
+        document.getElementById('scanManual').addEventListener('keydown', e => {
+            if (e.key === 'Enter') { const v = e.target.value.trim(); if (v) buscarDesdeManual(v); }
+        });
+        // Copiar nº de orden desde la tarjeta de resultado
+        document.getElementById('scanResult').addEventListener('click', e => {
+            const o = e.target.closest('.sc-order[data-order]');
+            if (!o) return;
+            const id = o.dataset.order;
+            if (navigator.clipboard) navigator.clipboard.writeText(id).catch(() => {});
+            const c = o.querySelector('.sc-copy');
+            if (c) { c.textContent = '✓ copiado'; setTimeout(() => c.textContent = 'copiar', 1200); }
+        });
+    }
+
+    async function abrirScanner() {
+        _desbloquearAudio(); // el toque del botón habilita el sonido
+        const modal = document.getElementById('scanModal');
+        modal.classList.add('open');
+        document.getElementById('scanResult').innerHTML = '';
+        document.getElementById('scanRaw').textContent = '';
+        document.getElementById('scanManual').value = '';
+        await iniciarCamara();
+    }
+
+    function cerrarScanner() {
+        detenerCamara();
+        document.getElementById('scanModal').classList.remove('open');
+    }
+
+    function cargarZXing() {
+        if (window.ZXing) return Promise.resolve(true);
+        if (_zxingPromise) return _zxingPromise;
+        _zxingPromise = new Promise(res => {
+            const s = document.createElement('script');
+            s.src = 'https://cdn.jsdelivr.net/npm/@zxing/library@0.19.1/umd/index.min.js';
+            s.onload = () => res(true);
+            s.onerror = () => res(false);
+            document.head.appendChild(s);
+        });
+        return _zxingPromise;
+    }
+
+    async function iniciarCamara() {
+        const video = document.getElementById('scanVideo');
+        const statusEl = document.getElementById('scanStatus');
+        document.getElementById('scanResult').innerHTML = '';
+        _scanHandled = false;
+        statusEl.textContent = 'Cargando lector…';
+        const ok = await cargarZXing();
+        if (!ok || !window.ZXing) {
+            statusEl.innerHTML = '⚠️ No cargó el lector (¿sin internet?). Escribí el número abajo 👇';
+            return;
+        }
+        try {
+            if (!_zxingReader) {
+                // Solo los formatos que usamos (Flex=QR, Correo=Code128/ITF) → mucho más rápido
+                // que probar los ~15 por defecto. TRY_HARDER ayuda a leer el barra aunque esté
+                // un poco torcido. 120ms entre intentos en vez de 500 (≈8/seg en vez de 2/seg).
+                const hints = new Map();
+                hints.set(ZXing.DecodeHintType.POSSIBLE_FORMATS, [
+                    ZXing.BarcodeFormat.QR_CODE, ZXing.BarcodeFormat.CODE_128,
+                    ZXing.BarcodeFormat.CODE_39, ZXing.BarcodeFormat.ITF
+                ]);
+                hints.set(ZXing.DecodeHintType.TRY_HARDER, true);
+                _zxingReader = new ZXing.BrowserMultiFormatReader(hints, 120);
+                _zxingReader.hints = hints; // el decode continuo lee this.hints (si no, los pierde)
+            }
+            statusEl.textContent = 'Apuntá al QR o al código de barras…';
+            // Cámara trasera + autofoco continuo. Mantengo 1280×720 (el QR ya vuela así);
+            // para el barra 1D el que ayuda de verdad es el zoom (barrotes más gruesos).
+            const constraints = { video: {
+                facingMode: { ideal: 'environment' },
+                width: { ideal: 1280 }, height: { ideal: 720 },
+                advanced: [{ focusMode: 'continuous' }]
+            } };
+            await _zxingReader.decodeFromConstraints(constraints, video,
+                (result) => { if (result && !_scanHandled) onScanCode(result.getText()); });
+            // zoom/linterna si la cámara los soporta (ayudan un montón con el barra 1D)
+            try { _scanTrack = video.srcObject && video.srcObject.getVideoTracks()[0]; } catch (e) { _scanTrack = null; }
+            configurarZoomYLinterna(_scanTrack);
+        } catch (e) {
+            statusEl.innerHTML = '📷 No pude abrir la cámara. Escribí el número abajo 👇';
+        }
+    }
+
+    function detenerCamara() {
+        try { if (_zxingReader) _zxingReader.reset(); } catch (e) {}
+        _scanTrack = null;
+        const zw = document.getElementById('scanZoom'); if (zw) zw.hidden = true;
+        const tb = document.getElementById('scanTorch'); if (tb) tb.classList.remove('on');
+    }
+
+    // Muestra el slider de zoom y/o la linterna si la cámara los soporta.
+    // El zoom hace los barrotes del código de barras más gruesos → se lee mucho más rápido.
+    function configurarZoomYLinterna(track) {
+        const zoomWrap = document.getElementById('scanZoom');
+        const range = document.getElementById('scanZoomRange');
+        const torchBtn = document.getElementById('scanTorch');
+        const lupa = zoomWrap.querySelector('span');
+        zoomWrap.hidden = true; torchBtn.hidden = true; torchBtn.classList.remove('on');
+        range.hidden = true; if (lupa) lupa.hidden = true;
+        if (!track || !track.getCapabilities) return;
+        let caps = {};
+        try { caps = track.getCapabilities() || {}; } catch (e) { return; }
+        let algo = false;
+        if (caps.zoom && typeof caps.zoom === 'object' && (caps.zoom.max || 1) > (caps.zoom.min || 1)) {
+            const min = caps.zoom.min ?? 1, max = caps.zoom.max ?? 1, step = caps.zoom.step || 0.1;
+            range.min = min; range.max = max; range.step = step;
+            range.value = Math.min(max, Math.max(min, 1));
+            range.oninput = () => { try { track.applyConstraints({ advanced: [{ zoom: Number(range.value) }] }); } catch (e) {} };
+            range.hidden = false; if (lupa) lupa.hidden = false; algo = true;
+        }
+        if (caps.torch) {
+            torchBtn.hidden = false; algo = true;
+            torchBtn.onclick = () => {
+                const on = !torchBtn.classList.contains('on');
+                try { track.applyConstraints({ advanced: [{ torch: on }] }); torchBtn.classList.toggle('on', on); } catch (e) {}
+            };
+        }
+        zoomWrap.hidden = !algo;
+    }
+
+    async function onScanCode(raw) {
+        _scanHandled = true;
+        detenerCamara();
+        bipEscaneo();
+        if (navigator.vibrate) { try { navigator.vibrate(90); } catch (e) {} }
+        document.getElementById('scanRaw').textContent = raw;
+        document.getElementById('scanStatus').textContent = 'Buscando…';
+        await buscarVenta(raw);
+    }
+
+    async function buscarDesdeManual(v) {
+        _scanHandled = true;
+        detenerCamara();
+        document.getElementById('scanRaw').textContent = 'Manual: ' + v;
+        document.getElementById('scanStatus').textContent = 'Buscando…';
+        await buscarVenta(v);
+    }
+
+    window.reintentarScan = async function() {
+        document.getElementById('scanResult').innerHTML = '';
+        document.getElementById('scanRaw').textContent = '';
+        document.getElementById('scanManual').value = '';
+        await iniciarCamara();
+    };
+
+    // Extrae números candidatos del contenido escaneado (JSON, "MEL<id>...", dígitos sueltos)
+    function _extraerCandidatos(raw) {
+        const s = String(raw || '').trim();
+        const cands = [];
+        let senderHint = null;
+        const push = v => { v = String(v).replace(/\D/g, ''); if (v.length >= 8 && !cands.includes(v)) cands.push(v); };
+        try {
+            const j = JSON.parse(s);
+            if (j && typeof j === 'object') {
+                ['id', 'order_id', 'shipment_id', 'shipping_id', 'pack_id'].forEach(k => { if (j[k]) push(j[k]); });
+                if (j.sender_id) senderHint = String(j.sender_id).replace(/\D/g, '');
+            }
+        } catch (e) {}
+        const mel = s.match(/MEL(\d{6,})/i); if (mel) push(mel[1]);
+        (s.match(/\d{8,}/g) || []).forEach(push);
+        cands.sort((a, b) => b.length - a.length); // ids de venta (largos) primero
+        return { cands, senderHint };
+    }
+
+    async function _scanFetch(cta, path) {
+        for (let attempt = 0; attempt < 2; attempt++) {
+            const { access_token } = await getToken(cta);
+            try {
+                const sep = path.includes('?') ? '&' : '?';
+                return await jsonConRetry(`${cta.proxy}${path}${sep}_ts=${Date.now()}`,
+                    { cache: 'no-store', headers: { 'Authorization': `Bearer ${access_token}` } });
+            } catch (e) {
+                if (attempt === 0 && /40[13]/.test(String(e.message))) { invalidarToken(cta.proxy); continue; }
+                throw e;
+            }
+        }
+    }
+
+    async function _lookupShip(cta, shipId) {
+        const sh = await _scanFetch(cta, `/api/shipments/${shipId}`);
+        if (!sh || !sh.id || sh.error) return null;
+        let order = null;
+        const oid = sh.order_id || (sh.order && sh.order.id);
+        if (oid) { try { order = await _scanFetch(cta, `/api/orders/${oid}`); } catch (e) {} }
+        if (order && (order.error || !order.id)) order = null;
+        return { ship: sh, order };
+    }
+
+    async function _lookupOrder(cta, orderId) {
+        const od = await _scanFetch(cta, `/api/orders/${orderId}`);
+        if (!od || !od.id || od.error) return null;
+        let ship = null;
+        const sid = od.shipping && od.shipping.id;
+        if (sid) { try { ship = await _scanFetch(cta, `/api/shipments/${sid}`); } catch (e) {} }
+        if (ship && (ship.error || !ship.id)) ship = null;
+        return { ship, order: od };
+    }
+
+    // Resuelve con el PRIMER intento que devuelve algo (no espera a los que fallan)
+    function _primerExito(promesas) {
+        return new Promise(resolve => {
+            let pend = promesas.length;
+            if (!pend) return resolve(null);
+            promesas.forEach(p => Promise.resolve(p).then(r => {
+                if (r) resolve(r);
+                else if (--pend === 0) resolve(null);
+            }));
+        });
+    }
+
+    async function buscarVenta(raw) {
+        const { cands, senderHint } = _extraerCandidatos(raw);
+        if (!cands.length) { mostrarScanError('No pude leer un número en el código.'); return; }
+        let cuentas = CUENTAS.slice();
+        if (senderHint) {
+            cuentas.sort((a, b) =>
+                (SELLER_IDS[b.nombre] === senderHint ? 1 : 0) - (SELLER_IDS[a.nombre] === senderHint ? 1 : 0));
+        }
+        const tarea = (cta, cand, modo) =>
+            (modo === 'ship' ? _lookupShip(cta, cand) : _lookupOrder(cta, cand))
+                .then(res => res ? { cta, res } : null).catch(() => null);
+        // Dispara TODAS las cuentas (y candidatos) en paralelo; gana la primera que responde.
+        // Así Chaya no espera a que Mikra falle (antes eran ~4 requests en fila).
+        const correr = (modoDe) => {
+            const tasks = [];
+            for (const cand of cands) for (const cta of cuentas) tasks.push(tarea(cta, cand, modoDe(cand)));
+            return _primerExito(tasks);
+        };
+        // 1ª pasada: interpretación probable (id largo = venta, corto = envío)
+        let hit = await correr(cand => cand.length >= 14 ? 'order' : 'ship');
+        // 2ª pasada solo si nada matcheó: interpretación opuesta
+        if (!hit) hit = await correr(cand => cand.length >= 14 ? 'ship' : 'order');
+        if (hit) {
+            // Si es un PACK (varios artículos = varias órdenes), traigo TODAS las órdenes
+            const orders = await _ordenesDelPack(hit.cta, hit.res.order);
+            renderScanDetalle(hit.cta, hit.res.order, hit.res.ship, orders);
+            return;
+        }
+        mostrarScanError('No la encontré en Mikra ni Chaya. Revisá el número.');
+    }
+
+    // Un envío puede cubrir un PACK de varias órdenes (ej: remera + calza compradas juntas).
+    // Cada orden trae 1 artículo → hay que juntar todas para ver el pedido completo.
+    async function _ordenesDelPack(cta, order) {
+        if (!order) return [];
+        if (!order.pack_id) return [order];
+        let pk = null;
+        try { pk = await _scanFetch(cta, `/api/packs/${order.pack_id}`); } catch (e) {}
+        const ids = ((pk && pk.orders) || []).map(o => o.id).filter(Boolean);
+        if (!ids.length) return [order];
+        const traidas = await Promise.all(ids.map(id =>
+            String(id) === String(order.id)
+                ? Promise.resolve(order)
+                : _scanFetch(cta, `/api/orders/${id}`).catch(() => null)
+        ));
+        const orders = traidas.filter(o => o && o.id && !o.error);
+        return orders.length ? orders : [order];
+    }
+
+    // ── Render del detalle ──
+    function _estadoEnvioTxt(ship, order) {
+        if (!ship) {
+            if (order && order.status === 'cancelled') return { txt: 'Venta cancelada', cls: 'bad' };
+            return { txt: 'Sin datos de envío', cls: '' };
+        }
+        const st = ship.status, sub = ship.substatus;
+        // El SUBSTATUS manda para el texto de cara al cliente (un envío puede seguir
+        // como "ready_to_ship" pero con substatus "dropped_off" = ya entregado al correo = En camino).
+        const SUB = {
+            ready_to_print:         ['Para imprimir', 'warn'],
+            printed:                ['Impreso · a despachar', 'warn'],
+            ready_to_pack:          ['Para empaquetar', 'warn'],
+            picked_up:              ['Despachado', 'ok'],
+            dropped_off:            ['En camino · entregado al correo', 'ok'],
+            in_hub:                 ['En camino · en depósito', 'ok'],
+            in_warehouse:           ['En camino · en depósito', 'ok'],
+            in_packing_list:        ['En camino', 'ok'],
+            in_route:               ['En camino', 'ok'],
+            out_for_delivery:       ['En reparto', 'ok'],
+            soon_deliver:           ['En reparto', 'ok'],
+            waiting_for_withdrawal: ['En sucursal para retirar', 'ok'],
+            receiver_absent:        ['Comprador ausente', 'bad'],
+            delivered:              ['Entregado', 'ok'],
+            damaged:                ['Dañado', 'bad'],
+            returning_to_sender:    ['Volviendo al vendedor', 'bad'],
+            buyer_rescheduled:      ['Reprogramado por comprador', 'warn']
+        };
+        const ST = {
+            pending:       ['Pendiente', ''],
+            handling:      ['En preparación', 'warn'],
+            ready_to_ship: ['Listo para despachar', 'warn'],
+            shipped:       ['En camino', 'ok'],
+            delivered:     ['Entregado', 'ok'],
+            not_delivered: ['No entregado', 'bad'],
+            cancelled:     ['Cancelado', 'bad']
+        };
+        // estados terminales: manda el status
+        if (st === 'delivered') return { txt: 'Entregado', cls: 'ok' };
+        if (st === 'cancelled') return { txt: 'Cancelado', cls: 'bad' };
+        if (st === 'not_delivered') return { txt: (SUB[sub] && SUB[sub][0]) || 'No entregado', cls: 'bad' };
+        if (st === 'shipped') return { txt: (SUB[sub] && SUB[sub][0]) || 'En camino', cls: (SUB[sub] && SUB[sub][1]) || 'ok' };
+        // resto (ready_to_ship / handling / pending): el substatus define
+        if (sub && SUB[sub]) return { txt: SUB[sub][0], cls: SUB[sub][1] };
+        return { txt: (ST[st] && ST[st][0]) || st || '—', cls: (ST[st] && ST[st][1]) || '' };
+    }
+
+    function _logisticoTxt(ship, cta) {
+        const lt = ship && ship.logistic_type;
+        const m = { self_service: 'Flex 🏍️', cross_docking: (cta.colectaLabel || 'Colecta') + ' 📦',
+            xd_drop_off: (cta.colectaLabel || 'Colecta') + ' 📦', drop_off: 'Correo 📮', fulfillment: 'Full ⚡' };
+        return m[lt] || (lt || 'Envío');
+    }
+
+    function _scanFecha(iso) {
+        if (!iso) return '';
+        try {
+            return new Date(iso).toLocaleString('es-AR',
+                { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' });
+        } catch (e) { return ''; }
+    }
+
+    // Recibe TODAS las órdenes del pedido (un pack puede tener varias) y arma la lista completa.
+    function _scanItemsHTML(orders, ship) {
+        const imgMap = _getImgMap();
+        let catalog = null;
+        try { catalog = (typeof buildStockCatalog === 'function') ? buildStockCatalog() : null; } catch (e) {}
+        const items = [];
+        (orders || []).forEach(od => (od && od.order_items || []).forEach(it => items.push(it)));
+        if (items.length) {
+            let html = '';
+            items.forEach(it => {
+                const t = it.item || {};
+                const skuVenta = t.seller_sku || t.seller_custom_field || '';
+                const prod = { sku: skuVenta, titulo: t.title || '', cantidad: it.quantity || 1 };
+                const orderVars = (t.variation_attributes || []).map(v => v.value_name).filter(Boolean).join(' · ');
+                // Descifra: conjunto → varias filas; multipack "Pack X3" → 1 fila ×3; normal → 1 fila.
+                let filas = [];
+                try { filas = _desglosarProducto(prod, catalog); } catch (e) {}
+                if (!filas.length) filas = [{ sku: skuVenta, nombre: t.title || '—', color: '', talle: '', cantidad: prod.cantidad, mult: 1, tipo: 'normal' }];
+                filas.forEach(g => {
+                    const u = (g.cantidad || 1) * (g.mult || 1);
+                    const ct  = ([g.color, g.talle].filter(Boolean).join(' · ')) || orderVars;
+                    const sub = [g.sku ? 'SKU ' + g.sku : '', ct].filter(Boolean).join('  ·  ');
+                    const tag = g.tipo === 'conjunto' ? '<span class="pu-tag conj">conjunto</span>'
+                              : (g.mult > 1 ? `<span class="pu-tag pack">pack ×${g.mult}</span>` : '');
+                    html += `<div class="sc-item">${_fdThumb(g.sku, imgMap)}` +
+                        `<div class="sc-item-info"><div class="sc-item-title">${escHtml(g.nombre)} ${tag}</div>` +
+                        (sub ? `<div class="sc-item-sub">${escHtml(sub)}</div>` : '') + `</div>` +
+                        `<div class="sc-item-qty">×${u}</div></div>`;
+                });
+            });
+            return html;
+        }
+        // Respaldo: shipping_items del envío (lista todo lo del paquete, aunque sin SKU/variación)
+        const sitems = (ship && ship.shipping_items) || [];
+        return sitems.map(si => `<div class="sc-item">${_fdThumb(null, imgMap)}` +
+            `<div class="sc-item-info"><div class="sc-item-title">${escHtml(si.description || '—')}</div></div>` +
+            `<div class="sc-item-qty">×${si.quantity || 1}</div></div>`).join('');
+    }
+
+    function renderScanDetalle(cta, order, ship, orders) {
+        document.getElementById('scanStatus').textContent = '✓ Encontrado';
+        orders = (orders && orders.length) ? orders : (order ? [order] : []);
+        const esPack = !!(order && order.pack_id);
+        const dir = (ship && ship.receiver_address) || {};
+        const ciudad = [dir.city && dir.city.name, dir.state && dir.state.name].filter(Boolean).join(', ');
+        const cp = dir.zip_code ? ` (${dir.zip_code})` : '';
+        // En un pack, ML identifica la venta por el pack_id; si no, por el id de la orden.
+        const numVenta = (order && (order.pack_id || order.id)) || (ship && ship.order_id) || '';
+        const est = _estadoEnvioTxt(ship, order);
+        const buyer = (order && order.buyer && order.buyer.nickname) || dir.receiver_name || '—';
+        const fecha = _scanFecha((order && order.date_created) || (ship && ship.date_created));
+        // Total = suma de todas las órdenes del pack
+        const totNum = orders.reduce((a, o) => a + (Number(o && o.total_amount) || 0), 0);
+        const tot = totNum ? '$' + totNum.toLocaleString('es-AR') : '';
+        const itemsHtml = _scanItemsHTML(orders, ship) || '<div class="sc-item-sub">Sin ítems</div>';
+        const dirHtml = (dir.address_line || ciudad) ?
+            `<div class="sc-dir">📍 ${escHtml(dir.address_line || '')}` +
+            (ciudad ? `<br>${escHtml(ciudad)}${cp}` : '') +
+            (dir.receiver_name ? `<br><span class="sc-dir-ref">Recibe: ${escHtml(dir.receiver_name)}</span>` : '') +
+            (dir.comment ? `<br><span class="sc-dir-ref">${escHtml(dir.comment)}</span>` : '') + `</div>` : '';
+        const html =
+            `<div class="sc-card ${cta.css}">` +
+                `<div class="sc-top"><span class="sc-cuenta">${escHtml(cta.nombre)}</span>` +
+                    `<span class="sc-logistic">${_logisticoTxt(ship, cta)}</span></div>` +
+                `<div class="sc-body">` +
+                    `<div class="sc-order" data-order="${escHtml(String(numVenta))}" title="Tocá para copiar">#${escHtml(String(numVenta))} <span class="sc-copy">copiar</span></div>` +
+                    `<div class="sc-meta"><span>👤 ${escHtml(buyer)}</span>` +
+                        (fecha ? `<span>🕒 ${escHtml(fecha)}</span>` : '') +
+                        (tot ? `<span>💰 ${escHtml(tot)}</span>` : '') +
+                        (esPack ? `<span>📦 pack · ${orders.length} ventas</span>` : '') + `</div>` +
+                    `<div class="sc-estado ${est.cls}">${escHtml(est.txt)}</div>` +
+                    `<div class="sc-items">${itemsHtml}</div>` +
+                    dirHtml +
+                    (ship && ship.tracking_number ? `<div class="sc-item-sub" style="font-family:'Space Mono',monospace">🏷️ ${escHtml(ship.tracking_number)}</div>` : '') +
+                `</div>` +
+            `</div>` +
+            `<button class="scan-again" onclick="reintentarScan()">📷 Escanear otro</button>`;
+        document.getElementById('scanResult').innerHTML = html;
+    }
+
+    function mostrarScanError(msg) {
+        document.getElementById('scanStatus').textContent = '';
+        document.getElementById('scanResult').innerHTML =
+            `<div class="sc-err">😕 <b>${escHtml(msg)}</b></div>` +
+            `<button class="scan-again" onclick="reintentarScan()">📷 Intentar de nuevo</button>`;
+    }
+
     window.abrirPruebaUPaq = function() {
         if (!resultadosCache?.data) return;
         const catalog = buildStockCatalog();
@@ -4269,6 +4813,7 @@
     inicializarModalEscanear();
     inicializarModalFlexDesglose();
     inicializarModalPrueba();
+    inicializarScanner();
     wireCompareBtn();
     aplicarPrefs();
     resultadosCache = leerResultadosCache();
