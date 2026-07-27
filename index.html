@@ -483,10 +483,7 @@
             color: var(--muted-2);
         }
         .card-horario b { color: var(--text); font-weight: 700; }
-        .card-horario.urgent b {
-            color: var(--red);
-            animation: pulse-txt 1.5s ease infinite;
-        }
+        .card-horario.urgent b { }
         .card-horario.passed { opacity: 0.45; }
         .card-horario.none { opacity: 0.5; font-size: 11px; }
         .card-horario.expandible { cursor: pointer; }
@@ -505,7 +502,7 @@
             transition: max-height 0.3s ease, margin 0.3s ease;
         }
         .horario-breakdown.open {
-            max-height: 220px;
+            max-height: 320px;
             margin: -2px 0 10px;
         }
         .hb-inner {
@@ -515,25 +512,68 @@
             font-family: 'Space Mono', monospace;
             font-size: 11px;
         }
-        .hb-row {
-            display: flex;
-            justify-content: space-between;
+        .hb-head, .hb-row {
+            display: grid;
+            grid-template-columns: 1.1fr 1.3fr 1.6fr;
+            gap: 6px;
+            align-items: baseline;
             padding: 4px 2px;
-            color: var(--muted-2);
         }
+        .hb-head {
+            font-size: 8.5px;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            color: var(--muted);
+            border-bottom: 1px solid var(--border);
+            margin-bottom: 2px;
+        }
+        .hb-head span:nth-child(3), .hb-accion { text-align: right; }
+        .hb-head span:nth-child(2), .hb-corte { text-align: right; }
+        .hb-row { color: var(--muted-2); }
+        .hb-row .hb-corte { color: var(--muted); }
         .hb-row.hb-pasado { opacity: 0.4; }
         .hb-row.hb-hoy { color: var(--text); }
-        .hb-row.hb-hoy b { color: var(--yellow); }
-        .hb-row b { font-weight: 700; }
-        .hb-row .hb-sin { color: #3a3a55; }
+        .hb-row.hb-hoy .hb-accion { color: var(--yellow); }
+        .hb-row.hb-hoy .hb-dia { font-weight: 700; }
+        .hb-accion { font-weight: 700; color: var(--text); }
+        /* Despacho antes de las 14:00 → amarillo subrayado (hay que despachar temprano) */
+        .hb-accion.hb-temprano, b.hor-temprano {
+            color: var(--yellow) !important;
+            text-decoration: underline;
+            text-decoration-color: var(--yellow);
+            text-underline-offset: 2px;
+        }
         .hb-origen {
             text-align: center;
             font-size: 9px;
             color: var(--muted);
-            margin-top: 4px;
+            margin-top: 5px;
             text-transform: uppercase;
             letter-spacing: 0.6px;
         }
+        .hb-fresh {
+            text-align: center;
+            font-size: 10px;
+            font-weight: 700;
+            margin-top: 5px;
+            padding: 4px 6px;
+            border-radius: 7px;
+        }
+        .hb-fresh.ok  { color: var(--green);  background: rgba(52,211,153,0.12); }
+        .hb-fresh.old { color: var(--orange); background: rgba(255,159,10,0.12); }
+        .hor-fresh-line {
+            text-align: center;
+            font-size: 10px;
+            font-weight: 600;
+            line-height: 1;
+            margin: -2px 0 1px;
+        }
+        .hor-fresh-line.ok  { color: var(--green); }
+        .hor-fresh-line.old { color: var(--orange); }
+        /* Puntito de frescura en el chip cerrado */
+        .hor-dot { font-size: 8px; vertical-align: middle; }
+        .hor-dot.ok  { color: var(--green); }
+        .hor-dot.old { color: var(--orange); }
 
         @keyframes pulse-txt {
             0%, 100% { opacity: 1; }
@@ -2281,17 +2321,12 @@
     }
 
     async function cargarHorarios() {
-        const fechaHoy   = new Date().toISOString().split('T')[0];
-        const cache      = leerCacheHorarios();
-        const cacheDeHoy = cache?.fecha === fechaHoy;
+        const cache = leerCacheHorarios();
 
-        if (cacheDeHoy) {
-            // Cache fresco del día → usar siempre sin fetchear
-            aplicarCacheHorarios(cache);
-            return;
-        }
+        // Mostrar el cache existente como preview (render rápido mientras fetchea)
+        if (cache?.data) aplicarCacheHorarios(cache);
 
-        // Sin cache de hoy → fetchear del worker, INCLUSO en fin de semana.
+        // SIEMPRE fetchear del worker — el sync puede correr en cualquier momento.
         // El script de horarios puede subir "próxima semana" un sábado o domingo
         // (corriendo en la página de Mercado Libre) — si no refrescamos, el
         // dashboard se queda mostrando datos de hace días sin enterarse nunca.
@@ -2922,6 +2957,39 @@
         return { h: Number(m[1]), m: Number(m[2]) };
     }
 
+    // ¿El despacho / paso de la colecta es ANTES de las 14:00? (ej. "pasan 13:00-15:00"
+    // o "despachar 13:30") → se resalta en amarillo para avisar que hay que despachar
+    // temprano ese día.
+    function _despachoTemprano(action) {
+        const t = extraerHoraTope(action); // primer horario del texto (inicio del paso / despacho)
+        if (!t) return false;
+        return (t.h * 60 + t.m) < (14 * 60);
+    }
+
+    // Etiqueta clara de la acción para el desglose: "Pasan 14:00-16:00" / "Despachar 14:00".
+    function _accionLabel(action, cutoff) {
+        if (!action) return cutoff ? `corte ${cutoff}` : '—';
+        return action.charAt(0).toUpperCase() + action.slice(1);
+    }
+
+    // Frescura del dato del worker. VERDE solo si se actualizó HOY (mismo día
+    // calendario, después de las 00:00) — no "hace menos de 24 h", porque un dato de
+    // ayer a la tarde caía en <24h y mostraba "hoy 14:25" cuando esa hora aún no pasó.
+    function _frescuraHorario(cuentaNombre) {
+        const up = HORARIOS_META[cuentaNombre]?.updated;
+        if (!up) return null;
+        const dt = new Date(up), now = new Date();
+        const hhmm = dt.toLocaleTimeString('es-AR', { hour: '2-digit', minute: '2-digit', hour12: false });
+        if (dt.toDateString() === now.toDateString()) {
+            return { cls: 'ok', short: `hoy ${hhmm}`, txt: `Actualizado hoy a las ${hhmm}` };
+        }
+        const d0 = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+        const d1 = new Date(dt.getFullYear(), dt.getMonth(), dt.getDate());
+        const dias = Math.round((d0 - d1) / 86400000);
+        const cuando = dias === 1 ? 'ayer' : `hace ${dias} días`;
+        return { cls: 'old', short: `${cuando} ${hhmm}`, txt: `Actualizado ${cuando} (${hhmm})` };
+    }
+
     // Devuelve { chip, panel } — chip va en card-header-row, panel es un bloque
     // colapsable aparte (se abre al tocar el chip) con el desglose día por día.
     function renderHorario(readyTotal, cuentaNombre, uid) {
@@ -2950,36 +3018,52 @@
                 urgent = readyTotal > 0 && diffMin > 0 && diffMin < 120;
                 passed = diffMin < 0;
             }
-            icon = passed ? '✅' : (urgent ? '⚠️' : '🚚');
-            cls = urgent ? 'urgent' : (passed ? 'passed' : '');
+            icon = '🚚';
+            cls = '';
         }
 
         const prefijoDia = esHoy ? '' : `${headline.nombre} `;
 
+        // Puntito de frescura para el chip cerrado (verde <24 h, naranja si más viejo)
+        const fresca = _frescuraHorario(cuentaNombre);
+        const dot = fresca ? ` <span class="hor-dot ${fresca.cls}" title="${escHtml(fresca.txt)}">●</span>` : '';
+
+        const freshLine = fresca
+            ? `<div class="hor-fresh-line ${fresca.cls}">(${fresca.short})</div>`
+            : '';
+
         // Mismo horario toda la semana → mostrar directo, sin necesidad de tocar.
         if (tipo === 'uniforme') {
             return {
-                chip: `<div class="card-horario ${cls}" title="Todos los días: ${headline.cutoff}">${icon} <b>${prefijoDia}${principal}</b></div>`,
-                panel: ''
+                chip: `<div class="card-horario ${cls}" title="${escHtml((fresca ? fresca.txt + ' · ' : '') + 'Todos los días: ' + headline.cutoff)}">${icon} <b>${prefijoDia}${principal}</b>${dot}</div>`,
+                panel: '',
+                freshLine
             };
         }
 
         // Varía por día → chip resumido + tap para ver el desglose completo.
-        const chip = `<div class="card-horario expandible ${cls}" id="chip_${uid}" onclick="event.stopPropagation(); toggleHorarioBreak('${uid}')">
-            ${icon} <b>${prefijoDia}${principal}</b> <span class="hor-chevron">▾</span>
+        const chipTemprano = _despachoTemprano(headline.action) ? ' hor-temprano' : '';
+        const chip = `<div class="card-horario expandible ${cls}" id="chip_${uid}" title="${escHtml(fresca ? fresca.txt : '')}" onclick="event.stopPropagation(); toggleHorarioBreak('${uid}')">
+            ${icon} <b class="${chipTemprano}">${prefijoDia}${principal}</b>${dot} <span class="hor-chevron">▾</span>
         </div>`;
         const panel = `
         <div class="horario-breakdown" id="${uid}">
             <div class="hb-inner">
-                ${dias.map(d => `
+                <div class="hb-head"><span>Día</span><span>Corte ventas</span><span>Despacho / colecta</span></div>
+                ${dias.map(d => {
+                    const temprano = _despachoTemprano(d.action) ? ' hb-temprano' : '';
+                    return `
                     <div class="hb-row ${d.dia === today ? 'hb-hoy' : ''} ${d.dia < today ? 'hb-pasado' : ''}">
-                        <span>${d.nombre}${d.dia === today ? ' (hoy)' : ''}</span>
-                        <b>${extraerHorarioPrincipal(d.action) || d.cutoff}</b>
-                    </div>`).join('')}
+                        <span class="hb-dia">${d.nombre}${d.dia === today ? ' · hoy' : ''}</span>
+                        <span class="hb-corte">${d.cutoff ? 'hasta ' + d.cutoff : '—'}</span>
+                        <b class="hb-accion${temprano}">${_accionLabel(d.action, d.cutoff)}</b>
+                    </div>`;
+                }).join('')}
                 <div class="hb-origen">${vista.origen === 'proxima' ? 'próxima semana' : 'semana actual'}</div>
+                ${fresca ? `<div class="hb-fresh ${fresca.cls}">${fresca.txt}</div>` : ''}
             </div>
         </div>`;
-        return { chip, panel };
+        return { chip, panel, freshLine };
     }
 
     window.toggleHorarioBreak = function(uid) {
@@ -3363,6 +3447,7 @@
                     <div class="card-name">${c.nombre}${ventasMini}</div>
                     ${hor.chip}
                 </div>
+                ${hor.freshLine || ''}
                 ${hor.panel}
                 ${r.error
                     ? `<div class="error-badge">⚠️ Error al cargar</div>`
