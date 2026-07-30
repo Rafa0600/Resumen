@@ -145,6 +145,52 @@
         .hrm-col   { color: var(--blue); }
         .hrm-bsep  { color: var(--border-bright); font-size: 9px; }
 
+        /* ── Chart de velocidad por hora ── */
+        .vel-chart { padding: 8px 4px; }
+        .vel-chart-bars { display: flex; align-items: flex-end; gap: 2px; height: 140px; padding-top: 16px; }
+        .vel-chart-bar {
+            flex: 1; min-width: 0;
+            position: relative; cursor: default;
+            display: flex; align-items: flex-end;
+        }
+        .vel-chart-bar:hover { opacity: 0.8; }
+        .vel-chart-bar .vcb-val {
+            position: absolute; top: -14px; left: 50%; transform: translateX(-50%);
+            font-size: 9px; font-weight: 700; color: var(--text);
+            white-space: nowrap;
+        }
+        .vel-chart-bar .vcb-flex { background: var(--green); border-radius: 3px 3px 0 0; }
+        .vel-chart-bar .vcb-col  { background: var(--blue); }
+        .vel-chart-bar .vcb-stack { display: flex; flex-direction: column; width: 100%; border-radius: 3px 3px 0 0; overflow: hidden; }
+        .vel-chart-labels {
+            display: flex; gap: 2px; margin-top: 2px;
+            border-top: 1px solid var(--border);
+            padding-top: 4px;
+        }
+        .vel-chart-labels span {
+            flex: 1; text-align: center; font-size: 10px; color: var(--muted);
+            font-family: 'Space Mono', monospace; font-weight: 600;
+        }
+        .vel-chart-labels span.vc-now { color: var(--yellow); }
+        .vel-chart-avg {
+            margin-top: 10px; text-align: center;
+            font-size: 12px; color: var(--muted);
+        }
+        .vel-chart-avg b { color: var(--text); }
+        .vel-chart-legend {
+            display: flex; justify-content: center; gap: 14px;
+            margin-top: 6px; font-size: 11px; color: var(--muted);
+        }
+        .vel-chart-legend i {
+            display: inline-block; width: 10px; height: 10px;
+            border-radius: 2px; margin-right: 4px; vertical-align: middle;
+        }
+        @media (max-width: 480px) {
+            .vel-chart-bars { height: 110px; gap: 1px; }
+            .vel-chart-labels span { font-size: 8px; }
+            .vel-chart-bar .vcb-val { font-size: 8px; top: -13px; }
+        }
+
         .hero-sub { font-size: 12px; color: var(--muted); margin-top: 3px; }
 
         /* ── Tiempo de preparación (siempre visible) ── */
@@ -1186,6 +1232,15 @@
         .fd-res-color .fdi-thumb { position: relative; z-index: 1; width: 26px; height: 26px; flex-shrink: 0; }
         .fd-res-cname { position: relative; z-index: 1; flex: 1; font-size: 12px; color: var(--muted-2); min-width: 0; }
         .fd-res-cqty { position: relative; z-index: 1; font-family: 'Space Mono', monospace; font-weight: 700; font-size: 12px; color: var(--yellow); flex-shrink: 0; }
+        .fd-res-color-exp .fd-res-color { cursor: pointer; -webkit-tap-highlight-color: transparent; }
+        .fd-res-color.abierto .fd-res-caret { transform: rotate(90deg); }
+        .fd-res-talles { display: flex; flex-wrap: wrap; gap: 4px; padding: 4px 8px 4px 42px; }
+        .fd-res-talles[hidden] { display: none; }
+        .fd-res-talle {
+            font-size: 11px; color: var(--muted-2); background: rgba(255,255,255,0.05);
+            padding: 2px 8px; border-radius: 5px;
+        }
+        .fd-res-talle b { color: var(--yellow); margin-left: 2px; }
         .fd-res-more {
             width: 100%; margin: 6px 0 2px; padding: 9px 10px; border-radius: 8px;
             background: var(--surface-2); color: var(--blue); border: 1px dashed var(--border);
@@ -1652,6 +1707,13 @@
             </div>
             <div class="scan-raw" id="scanRaw"></div>
             <div id="scanResult"></div>
+        </div>
+    </div>
+
+    <div class="modal-overlay" id="velChartModal">
+        <div class="modal-sheet">
+            <div class="modal-title"><span class="fd-modal-title-text">📊 Ventas por hora</span> <button class="modal-close" id="velChartClose">×</button></div>
+            <div id="velChartContent"></div>
         </div>
     </div>
 
@@ -2471,6 +2533,58 @@
         return { perHour, perActiveHour, intervalMin, count: dates.length, spanHours };
     }
 
+    function abrirChartVelocidad() {
+        const d = window._velDates;
+        if (!d) return;
+        const now = Date.now();
+        const h24 = 24 * 3600000;
+        const buckets = Array.from({ length: 24 }, () => ({ flex: 0, col: 0 }));
+        const bin = (dates, key) => {
+            dates.forEach(s => {
+                const t = new Date(s).getTime();
+                if (now - t > h24) return;
+                const hoursAgo = (now - t) / 3600000;
+                const idx = 23 - Math.min(23, Math.floor(hoursAgo));
+                buckets[idx][key]++;
+            });
+        };
+        bin(d.flex, 'flex');
+        bin(d.colecta, 'col');
+        const maxVal = Math.max(1, ...buckets.map(b => b.flex + b.col));
+        const BAR_H = 140;
+        const nowH = new Date().getHours();
+        let barsHtml = '', labelsHtml = '';
+        buckets.forEach((b, i) => {
+            const total = b.flex + b.col;
+            const h = Math.max(total > 0 ? 4 : 0, Math.round((total / maxVal) * BAR_H));
+            const flexH = total > 0 ? Math.round((b.flex / total) * h) : 0;
+            const colH = h - flexH;
+            const hourLabel = ((nowH - 23 + i + 24) % 24);
+            const hStr = hourLabel.toString().padStart(2, '0');
+            barsHtml += `<div class="vel-chart-bar" title="${hStr}:00 — ${total} ventas">` +
+                (total > 0 ? `<span class="vcb-val">${total}</span>` : '') +
+                `<div class="vcb-stack" style="height:${h}px">` +
+                `<div class="vcb-flex" style="height:${flexH}px"></div>` +
+                `<div class="vcb-col" style="height:${colH}px"></div>` +
+                `</div></div>`;
+            const isNow = hourLabel === nowH;
+            labelsHtml += `<span class="${isNow ? 'vc-now' : ''}">${hStr}</span>`;
+        });
+        const totalAll = buckets.reduce((s, b) => s + b.flex + b.col, 0);
+        const avgPerH = (totalAll / 24).toFixed(1);
+        const el = document.getElementById('velChartContent');
+        el.innerHTML =
+            `<div class="vel-chart">` +
+            `<div class="vel-chart-bars">${barsHtml}</div>` +
+            `<div class="vel-chart-labels">${labelsHtml}</div>` +
+            `<div class="vel-chart-avg">Promedio: <b>${avgPerH}</b>/h · Total 24h: <b>${totalAll}</b></div>` +
+            `<div class="vel-chart-legend">` +
+            `<span><i style="background:var(--green)"></i>Flex</span>` +
+            `<span><i style="background:var(--blue)"></i>Colecta</span>` +
+            `</div></div>`;
+        document.getElementById('velChartModal').classList.add('open');
+    }
+
     // Próximo corte laboral: salta fines de semana y feriados.
     // dias = cuántos días adelante cae el corte (0 = hoy).
     function proximoCorteLaboral(corteH, corteM) {
@@ -2589,6 +2703,7 @@
 
         const allFlexDates    = resultados.flatMap(r => r.flexDatesAll    || []);
         const allColectaDates = resultados.flatMap(r => r.colectaDatesAll || []);
+        window._velDates = { flex: allFlexDates, colecta: allColectaDates };
 
         const sum = (key, sub) => resultados.reduce((a, r) => a + (r[key]?.[sub] || 0), 0);
         const flexPending    = sum('ready', 'flex')    + sum('printed', 'flex');
@@ -2633,7 +2748,20 @@
         document.getElementById('heroTotalRate').textContent   = hasAnyVel ? fmtRate(totalPerHour) : '—';
         document.getElementById('heroFlexRate').textContent    = velFlex    ? fmtRate(velFlex.perHour)    : '—';
         document.getElementById('heroColectaRate').textContent = velColecta ? fmtRate(velColecta.perHour) : '—';
-        document.getElementById('heroRatesMini').style.display = 'flex';
+        const ratesMiniEl = document.getElementById('heroRatesMini');
+        ratesMiniEl.style.display = 'flex';
+        if (!ratesMiniEl._dtWired) {
+            ratesMiniEl._dtWired = true;
+            ratesMiniEl.style.cursor = 'pointer';
+            ratesMiniEl.title = 'Doble toque para ver gráfico por hora';
+            let lastTapR = 0;
+            ratesMiniEl.addEventListener('touchend', e => {
+                const now = Date.now();
+                if (now - lastTapR < 350) { e.preventDefault(); abrirChartVelocidad(); lastTapR = 0; }
+                else lastTapR = now;
+            });
+            ratesMiniEl.addEventListener('dblclick', e => { e.preventDefault(); abrirChartVelocidad(); });
+        }
 
         // ── Panel: Flex ──
         const flexRateEl = document.getElementById('flexRate');
@@ -3367,24 +3495,21 @@
         heroEl.style.display = 'block';
         const heroNumEl = document.getElementById('heroNumber');
         heroNumEl.textContent = totReady;
-        // Long-press en el número grande → ver TODOS los paquetes a preparar (flex+colecta,
-        // por hora, con fotos). Se wirea una sola vez (el elemento no se recrea).
-        if (!heroNumEl._lpWired) {
-            heroNumEl._lpWired = true;
+        // Doble-toque en el número grande → ver TODOS los paquetes a preparar.
+        if (!heroNumEl._dtWired) {
+            heroNumEl._dtWired = true;
             heroNumEl.style.cursor = 'pointer';
-            heroNumEl.title = 'Mantené presionado para ver todos los paquetes a preparar';
+            heroNumEl.title = 'Doble toque para ver todos los paquetes';
+            heroNumEl.style.userSelect = 'none';
+            heroNumEl.style.webkitUserSelect = 'none';
             const abrirTodos = () => abrirDesgloseReady('Total:todos', window._readyDesglose);
-            let hlp = null, hFired = false;
-            const hStart = () => { hFired = false; clearTimeout(hlp); hlp = setTimeout(() => { hFired = true; abrirTodos(); }, 500); };
-            const hCancel = () => clearTimeout(hlp);
-            heroNumEl.addEventListener('mousedown', e => { if (e.button === 0) hStart(); });
-            heroNumEl.addEventListener('mouseup', hCancel);
-            heroNumEl.addEventListener('mouseleave', hCancel);
-            heroNumEl.addEventListener('touchstart', () => hStart(), { passive: true });
-            heroNumEl.addEventListener('touchend', hCancel);
-            heroNumEl.addEventListener('touchmove', hCancel);
-            heroNumEl.addEventListener('contextmenu', e => { e.preventDefault(); abrirTodos(); });
-            heroNumEl.addEventListener('click', e => { if (hFired) { e.stopPropagation(); e.preventDefault(); hFired = false; } }, true);
+            let lastTap = 0;
+            heroNumEl.addEventListener('touchend', e => {
+                const now = Date.now();
+                if (now - lastTap < 350) { e.preventDefault(); abrirTodos(); lastTap = 0; }
+                else lastTap = now;
+            });
+            heroNumEl.addEventListener('dblclick', e => { e.preventDefault(); abrirTodos(); });
         }
         document.getElementById('heroSub').textContent =
             totReady === 1 ? 'paquete para imprimir' : 'paquetes para imprimir';
@@ -4296,8 +4421,20 @@
             }
         });
 
-        // Resumen: tocar un artículo expandible → mostrar/ocultar su desglose por color
+        // Resumen: tocar artículo → colores; tocar color → talles
         document.getElementById('flexDesgloseList').addEventListener('click', e => {
+            // Color → talles
+            const colorRow = e.target.closest('.fd-res-color-exp .fd-res-color');
+            if (colorRow) {
+                const wrap = colorRow.closest('.fd-res-color-wrap');
+                const talles = wrap && wrap.querySelector('.fd-res-talles');
+                if (talles) {
+                    talles.hidden = !talles.hidden;
+                    colorRow.classList.toggle('abierto', !talles.hidden);
+                }
+                return;
+            }
+            // Artículo → colores
             const row = e.target.closest('.fd-res-row.fd-res-exp');
             if (!row) return;
             const item = row.closest('.fd-res-item');
@@ -4695,21 +4832,27 @@
     function _resItemHTML(nombre, e, maxU, imgMap) {
         const pct = Math.max(6, Math.round(e.u / maxU * 100));
         const colores = [...e.colores.entries()].sort((a, b) => b[1].u - a[1].u);
-        const expandible = colores.length > 1;
-        const caret = expandible ? '<span class="fd-res-caret">▸</span>' : '';
-        let colHtml = '';
-        if (expandible) {
-            const maxC = colores[0][1].u;
-            colHtml = '<div class="fd-res-colores" hidden>' + colores.map(([cn, ce]) => {
-                const cp = Math.max(8, Math.round(ce.u / maxC * 100));
-                return `<div class="fd-res-color"><div class="fd-res-cbar" style="width:${cp}%"></div>` +
-                    _fdThumb(ce.sku, imgMap) +
-                    `<span class="fd-res-cname">${escHtml(cn)}</span>` +
-                    `<span class="fd-res-cqty">${ce.u}</span></div>`;
-            }).join('') + '</div>';
-        }
+        const caret = '<span class="fd-res-caret">▸</span>';
+        const maxC = colores[0]?.[1].u || 1;
+        const colHtml = '<div class="fd-res-colores" hidden>' + colores.map(([cn, ce]) => {
+            const cp = Math.max(8, Math.round(ce.u / maxC * 100));
+            const talles = [...(ce.talles || new Map()).entries()].sort((a, b) => _cmpTalle(a[0], b[0]));
+            const hasTalles = talles.length > 0 && !(talles.length === 1 && talles[0][0] === '—');
+            let talleHtml = '';
+            if (hasTalles) {
+                talleHtml = '<div class="fd-res-talles" hidden>' + talles.map(([tn, te]) =>
+                    `<span class="fd-res-talle">${escHtml(tn === '—' ? 'S/T' : tn)} <b>${te.u}</b></span>`
+                ).join('') + '</div>';
+            }
+            return `<div class="fd-res-color-wrap${hasTalles ? ' fd-res-color-exp' : ''}">` +
+                `<div class="fd-res-color"><div class="fd-res-cbar" style="width:${cp}%"></div>` +
+                _fdThumb(ce.sku, imgMap) +
+                `<span class="fd-res-cname">${escHtml(cn)}${hasTalles ? ' <span class="fd-res-caret">▸</span>' : ''}</span>` +
+                `<span class="fd-res-cqty">${ce.u}</span></div>` +
+                talleHtml + `</div>`;
+        }).join('') + '</div>';
         return `<div class="fd-res-item">` +
-            `<div class="fd-res-row${expandible ? ' fd-res-exp' : ''}"><div class="fd-res-bar" style="width:${pct}%"></div>` +
+            `<div class="fd-res-row fd-res-exp"><div class="fd-res-bar" style="width:${pct}%"></div>` +
                 _fdThumb(e.sku, imgMap) +
                 `<span class="fd-res-name">${escHtml(nombre)}${caret}</span>` +
                 `<span class="fd-res-qty">${e.u}</span></div>` +
@@ -4722,19 +4865,23 @@
     function _desgloseResumenHTML(st) {
         const { ordenado, catalog } = st;
         const imgMap = _getImgMap();
-        const agg = new Map(); // nombre → { u, sku, colores: Map<color,{u,sku}> }
+        const agg = new Map();
         ordenado.forEach(d => {
             (d.productos || []).flatMap(p => _desglosarProducto(p, catalog)).forEach(g => {
-                if (_esTecSku(g.sku)) return; // tecnología: nunca
+                if (_esTecSku(g.sku)) return;
                 const key = g.nombre || '—';
                 const u = (g.cantidad || 1) * (g.mult || 1);
                 const e = agg.get(key) || { u: 0, sku: g.sku, colores: new Map() };
                 e.u += u;
                 if (!e.sku) e.sku = g.sku;
                 const ck = g.color || '—';
-                const ce = e.colores.get(ck) || { u: 0, sku: g.sku };
+                const ce = e.colores.get(ck) || { u: 0, sku: g.sku, talles: new Map() };
                 ce.u += u;
                 if (!ce.sku) ce.sku = g.sku;
+                const tk = g.talle || '—';
+                const te = ce.talles.get(tk) || { u: 0 };
+                te.u += u;
+                ce.talles.set(tk, te);
                 e.colores.set(ck, ce);
                 agg.set(key, e);
             });
@@ -4778,6 +4925,10 @@
         document.getElementById('gearBtn').onclick = () => { sincronizarControles(); modal.classList.add('open'); };
         document.getElementById('settingsClose').onclick = () => modal.classList.remove('open');
         modal.onclick = e => { if (e.target === modal) modal.classList.remove('open'); };
+
+        const velModal = document.getElementById('velChartModal');
+        document.getElementById('velChartClose').onclick = () => velModal.classList.remove('open');
+        velModal.onclick = e => { if (e.target === velModal) velModal.classList.remove('open'); };
 
         document.querySelectorAll('#vistaSeg button').forEach(b => {
             b.onclick = () => {
