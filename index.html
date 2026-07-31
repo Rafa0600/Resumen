@@ -196,9 +196,32 @@
         .vel-chart-tabs button.active {
             background: var(--yellow); color: #000; border-color: var(--yellow);
         }
-        .vcb-ghost {
-            position: absolute; bottom: 0; left: 10%; width: 80%;
-            background: var(--muted); opacity: 0.25; border-radius: 3px 3px 0 0;
+        /* Barra de progreso al cargar el semanal */
+        .vel-prog { padding: 40px 8px; text-align: center; }
+        .vel-prog-label { font-size: 12px; color: var(--muted); margin-bottom: 12px; }
+        .vel-prog-bar {
+            height: 12px; border-radius: 6px; background: var(--surface-2);
+            border: 1px solid var(--border); overflow: hidden;
+        }
+        .vel-prog-fill {
+            height: 100%; width: 0%; border-radius: 6px;
+            background: linear-gradient(90deg, var(--green), var(--blue));
+            transition: width 0.25s ease;
+        }
+        .vel-prog-pct {
+            margin-top: 8px; font-size: 14px; font-weight: 700; color: var(--text);
+            font-family: 'Space Mono', monospace;
+        }
+        /* vs Ayer: dos barras por hora (ahora coloreada + previa gris) */
+        .vc-dual .vcb-pair { display: flex; align-items: flex-end; gap: 2px; width: 100%; height: 100%; }
+        .vcb-now, .vcb-prev { flex: 1; min-width: 0; border-radius: 3px 3px 0 0; display: flex; flex-direction: column; overflow: hidden; }
+        /* La barra "previa" (24h anteriores): mismo color pero más oscuro */
+        .vcb-prev { filter: brightness(0.55); opacity: 0.92; }
+        .vcb-prev-legend {
+            display: inline-block; width: 11px; height: 11px;
+            border-radius: 2px; margin-right: 4px; vertical-align: middle;
+            background: linear-gradient(var(--green) 50%, var(--blue) 50%);
+            filter: brightness(0.55); opacity: 0.92;
         }
         .vc-week { gap: 6px; }
         .vc-week-bar { border-radius: 4px 4px 0 0; }
@@ -206,8 +229,9 @@
         @media (max-width: 480px) {
             .vel-chart-bars { height: 110px; gap: 1px; }
             .vel-chart-bars.vc-week { gap: 4px; }
-            .vel-chart-labels span { font-size: 8px; }
-            .vel-chart-bar .vcb-val { font-size: 8px; top: -13px; }
+            .vc-dual .vcb-pair { gap: 1px; }
+            .vel-chart-labels span { font-size: 7px; }
+            .vel-chart-bar .vcb-val { font-size: 7px; top: -11px; }
             .vel-chart-tabs button { font-size: 11px; padding: 5px 0; }
         }
 
@@ -2098,7 +2122,7 @@
             // Traer despachados (shipped) + entregados (delivered) de los últimos 2 días.
             // Ambos cuentan para la velocidad de ventas; sin los delivered el gráfico
             // por hora muestra huecos falsos donde ya se procesó todo.
-            const desde = new Date(); desde.setDate(desde.getDate() - 8);
+            const desde = new Date(); desde.setDate(desde.getDate() - 2);
             const desdeISO = encodeURIComponent(desde.toISOString().split('.')[0] + '.000-00:00');
             const hasta = new Date(); hasta.setDate(hasta.getDate() + 1);
             const hastaISO = encodeURIComponent(hasta.toISOString().split('.')[0] + '.000-00:00');
@@ -2126,7 +2150,7 @@
                     }
                     if (orders.length < 50) break;
                     offset += 50;
-                    if (offset >= 500) break;
+                    if (offset >= 200) break;
                 }
                 return items;
             }
@@ -2272,6 +2296,7 @@
         // Últimas 24h (no desde medianoche, para que funcione bien a las 00:xx)
         const todayTs = Date.now() - 24 * 60 * 60 * 1000;
         const flexDatesAll = [], colectaDatesAll = [];
+        // Toda la ventana traída (2 días), clasificada — para el gráfico "vs Ayer".
         const flexDatesHist = [], colectaDatesHist = [];
         const escanearDetalle      = []; // flex impresos sin escanear: {orderId, zona, qty}
         const readyFlexDetalle     = []; // flex    ready_to_print: {orderId, qty, date, productos[]}
@@ -2301,7 +2326,8 @@
             if (subReal && subReal !== meta.substatus) _reclasif++;
             const entrega = _diaEntrega(shipReal); // día de entrega (YYYY-MM-DD, hora AR) para el filtro "por día"
 
-            if (meta.date) {
+            // Histórico clasificado (toda la ventana traída) para el gráfico "vs Ayer".
+            if (meta.date && substatus !== 'buffered') {
                 if (isFlex) flexDatesHist.push(meta.date);
                 else colectaDatesHist.push(meta.date);
             }
@@ -2352,14 +2378,14 @@
                     else        { pendEsc.colecta++; pendEsc.colectaUni += q; }
                 }
             }
-            if (sm.date) {
-                if (isFlex) flexDatesHist.push(sm.date);
-                else colectaDatesHist.push(sm.date);
-            }
             const orderTs = sm.date ? new Date(sm.date).getTime() : 0;
             if (orderTs >= todayTs && sm.date) {
                 if (isFlex) flexDatesAll.push(sm.date);
                 else colectaDatesAll.push(sm.date);
+            }
+            if (sm.date) {
+                if (isFlex) flexDatesHist.push(sm.date);
+                else colectaDatesHist.push(sm.date);
             }
         });
 
@@ -2573,55 +2599,101 @@
     }
 
     window._velChartMode = '24h';
+    window._velHistCache = null;
+    window._velHistLoading = false;
 
-    function _velAllDates() {
-        const d = window._velDates;
-        if (!d) return [];
-        return [...(d.histFlex || d.flex || []), ...(d.histColecta || d.colecta || [])].map(s => ({ t: new Date(s).getTime(), src: s }));
-    }
-
-    function _velBinHourly(dates, fromTs, toTs) {
-        const buckets = Array.from({ length: 24 }, () => ({ flex: 0, col: 0 }));
-        const d = window._velDates;
-        const flexSet = new Set((d.histFlex || d.flex || []).map(s => s));
-        dates.forEach(s => {
-            const t = new Date(s).getTime();
-            if (t < fromTs || t >= toTs) return;
-            const hour = new Date(t).getHours();
-            if (flexSet.has(s)) buckets[hour].flex++;
-            else buckets[hour].col++;
-        });
-        return buckets;
-    }
-
-    function _velRenderBars(buckets, BAR_H, ghostBuckets) {
-        const maxVal = Math.max(1, ...buckets.map(b => b.flex + b.col),
-            ...(ghostBuckets || []).map(b => b.flex + b.col));
-        const nowH = new Date().getHours();
-        let barsHtml = '', labelsHtml = '';
-        buckets.forEach((b, i) => {
-            const total = b.flex + b.col;
-            const h = Math.max(total > 0 ? 4 : 0, Math.round((total / maxVal) * BAR_H));
-            const flexH = total > 0 ? Math.round((b.flex / total) * h) : 0;
-            const colH = h - flexH;
-            let ghostHtml = '';
-            if (ghostBuckets) {
-                const gb = ghostBuckets[i];
-                const gt = gb.flex + gb.col;
-                const gh = Math.max(gt > 0 ? 4 : 0, Math.round((gt / maxVal) * BAR_H));
-                ghostHtml = `<div class="vcb-ghost" style="height:${gh}px" title="Ayer: ${gt}"></div>`;
+    // Cache persistente del semanal en localStorage (válido el mismo día).
+    const VELHIST_KEY = 'resumen_velhist_v1';
+    function _velHistDayStr() { const d = new Date(); return `${d.getFullYear()}-${d.getMonth() + 1}-${d.getDate()}`; }
+    (function _restoreVelHist() {
+        try {
+            const raw = JSON.parse(localStorage.getItem(VELHIST_KEY));
+            if (raw && raw.day === _velHistDayStr() && Array.isArray(raw.flex) && Array.isArray(raw.colecta)) {
+                window._velHistCache = { flex: raw.flex, colecta: raw.colecta };
             }
-            const hStr = String(i).padStart(2, '0');
-            barsHtml += `<div class="vel-chart-bar" title="${hStr}:00 — ${total}${ghostBuckets ? ' (ayer ' + (ghostBuckets[i].flex + ghostBuckets[i].col) + ')' : ''}">` +
-                (total > 0 ? `<span class="vcb-val">${total}</span>` : '') +
-                ghostHtml +
-                `<div class="vcb-stack" style="height:${h}px">` +
-                `<div class="vcb-flex" style="height:${flexH}px"></div>` +
-                `<div class="vcb-col" style="height:${colH}px"></div>` +
-                `</div></div>`;
-            labelsHtml += `<span class="${i === nowH ? 'vc-now' : ''}">${hStr}</span>`;
-        });
-        return { barsHtml, labelsHtml };
+        } catch (e) {}
+    })();
+
+    async function _velFetchHist(onProgress) {
+        if (window._velHistCache) return window._velHistCache;
+        if (window._velHistLoading) return null;
+        window._velHistLoading = true;
+        const prog = (p) => { try { onProgress && onProgress(Math.max(0, Math.min(100, Math.round(p)))); } catch (e) {} };
+        const flex = [], colecta = [];
+        prog(2);
+        try {
+            for (let ci = 0; ci < CUENTAS.length; ci++) {
+                const cuenta = CUENTAS[ci];
+                const base = ci * 50;               // cada cuenta = 50% de la barra
+                let { access_token, user_id } = await getToken(cuenta);
+                const makeOpts = () => ({ headers: { Authorization: `Bearer ${access_token}` } });
+                const desde = new Date(); desde.setDate(desde.getDate() - 8);
+                const desdeISO = encodeURIComponent(desde.toISOString().split('.')[0] + '.000-00:00');
+                const hasta = new Date(); hasta.setDate(hasta.getDate() + 1);
+                const hastaISO = encodeURIComponent(hasta.toISOString().split('.')[0] + '.000-00:00');
+                const dateFilter = `&order.date_created.from=${desdeISO}&order.date_created.to=${hastaISO}&order.status=paid`;
+
+                // 1) Traer órdenes (sid + fecha) de despachados/entregados. (0–15% de la cuenta)
+                const rows = [];
+                let paginas = 0;
+                for (const shStatus of ['shipped', 'delivered', 'ready_to_ship']) {
+                    let offset = 0;
+                    while (true) {
+                        const url = `${cuenta.proxy}/api/orders/search?seller=${user_id}&offset=${offset}&limit=50&sort=date_desc${dateFilter}&shipping.status=${shStatus}&_ts=${Date.now()}`;
+                        let data;
+                        try { data = await jsonConRetry(url, makeOpts()); } catch { break; }
+                        const orders = data.results || [];
+                        if (!orders.length) break;
+                        for (const o of orders) {
+                            const sid = o.shipping?.id;
+                            if (sid && o.date_created) rows.push({ sid, date: o.date_created });
+                        }
+                        paginas++;
+                        prog(base + Math.min(15, paginas * 2));
+                        if (orders.length < 50) break;
+                        offset += 50;
+                        if (offset >= 500) break;
+                    }
+                }
+
+                // 2) Clasificar flex/colecta: usar cache; traer envíos desconocidos. (15–50%)
+                const desconocidos = [...new Set(rows.map(r => r.sid).filter(sid => ltGet(sid) === undefined))];
+                const CHUNK = 40;
+                const lotes = [];
+                for (let i = 0; i < desconocidos.length; i += CHUNK) lotes.push(desconocidos.slice(i, i + CHUNK));
+                let hechos = 0;
+                async function traerLote(chunk) {
+                    const idsParam = chunk.join(',');
+                    let arr;
+                    try { arr = await jsonConRetry(`${cuenta.proxy}/api/shipments?ids=${idsParam}&_ts=${Date.now()}`, makeOpts()); }
+                    catch (e) {
+                        invalidarToken(cuenta.proxy);
+                        ({ access_token, user_id } = await getToken(cuenta));
+                        try { arr = await jsonConRetry(`${cuenta.proxy}/api/shipments?ids=${idsParam}&_ts=${Date.now()}`, makeOpts()); }
+                        catch (e2) { arr = []; }
+                    }
+                    if (Array.isArray(arr)) for (const s of arr) if (s?.id) ltSet(s.id, s.logistic_type);
+                    hechos++;
+                    prog(base + 15 + 35 * (hechos / (lotes.length || 1)));
+                }
+                let sig = 0;
+                async function pool() { while (sig < lotes.length) await traerLote(lotes[sig++]); }
+                await Promise.all(Array.from({ length: Math.min(4, lotes.length || 1) }, pool));
+                ltFlush();
+
+                // 3) Repartir por tipo (los que sigan sin tipo → colecta por defecto).
+                for (const r of rows) {
+                    if (ltGet(r.sid) === 'self_service') flex.push(r.date);
+                    else colecta.push(r.date);
+                }
+                prog((ci + 1) * 50);
+            }
+        } catch (e) { console.warn('velFetchHist error', e); }
+        prog(100);
+        window._velHistLoading = false;
+        window._velHistCache = { flex, colecta };
+        try { localStorage.setItem(VELHIST_KEY, JSON.stringify({ day: _velHistDayStr(), flex, colecta })); } catch (e) {}
+        return window._velHistCache;
     }
 
     function _velRender24h() {
@@ -2629,8 +2701,8 @@
         if (!d) return '';
         const now = Date.now();
         const h24 = 24 * 3600000;
-        const allDates = [...(d.histFlex || d.flex || []), ...(d.histColecta || d.colecta || [])];
-        const flexSet = new Set(d.histFlex || d.flex || []);
+        const allDates = [...d.flex, ...d.colecta];
+        const flexSet = new Set(d.flex);
         const buckets = Array.from({ length: 24 }, () => ({ flex: 0, col: 0 }));
         allDates.forEach(s => {
             const t = new Date(s).getTime();
@@ -2657,8 +2729,7 @@
                 `<div class="vcb-flex" style="height:${flexH}px"></div>` +
                 `<div class="vcb-col" style="height:${colH}px"></div>` +
                 `</div></div>`;
-            const isNow = hourLabel === nowH;
-            labelsHtml += `<span class="${isNow ? 'vc-now' : ''}">${hStr}</span>`;
+            labelsHtml += `<span class="${hourLabel === nowH ? 'vc-now' : ''}">${hStr}</span>`;
         });
         const totalAll = buckets.reduce((s, b) => s + b.flex + b.col, 0);
         const avgPerH = (totalAll / 24).toFixed(1);
@@ -2670,45 +2741,71 @@
     function _velRenderVsAyer() {
         const d = window._velDates;
         if (!d) return '';
-        const allDates = [...(d.histFlex || d.flex || []), ...(d.histColecta || d.colecta || [])];
-        const flexSet = new Set(d.histFlex || d.flex || []);
-        const hoy = new Date(); hoy.setHours(0, 0, 0, 0);
-        const ayer = new Date(hoy); ayer.setDate(ayer.getDate() - 1);
-        const hoyEnd = new Date(hoy); hoyEnd.setDate(hoyEnd.getDate() + 1);
+        const flexArr = d.histFlex || d.flex || [];
+        const colArr  = d.histColecta || d.colecta || [];
+        const flexSet = new Set(flexArr);
+        const allDates = [...flexArr, ...colArr];
+        // Ventana MÓVIL: últimas 24h vs las 24h anteriores, alineadas hora por hora.
+        // Barra i (0..23): i=23 = hora actual, i=0 = hace 23-24h. La fantasma "previa"
+        // en la misma posición es esa misma hora pero 24h antes → comparación directa.
+        const now = Date.now();
         const bHoy  = Array.from({ length: 24 }, () => ({ flex: 0, col: 0 }));
         const bAyer = Array.from({ length: 24 }, () => ({ flex: 0, col: 0 }));
         allDates.forEach(s => {
-            const dt = new Date(s);
-            const t = dt.getTime();
-            const hour = dt.getHours();
+            const t = new Date(s).getTime();
+            const hoursAgo = (now - t) / 3600000;
+            if (hoursAgo < 0) return;
             const isFlex = flexSet.has(s);
-            if (t >= hoy.getTime() && t < hoyEnd.getTime()) {
-                if (isFlex) bHoy[hour].flex++; else bHoy[hour].col++;
-            } else if (t >= ayer.getTime() && t < hoy.getTime()) {
-                if (isFlex) bAyer[hour].flex++; else bAyer[hour].col++;
+            if (hoursAgo < 24) {
+                const idx = 23 - Math.floor(hoursAgo);
+                if (isFlex) bHoy[idx].flex++; else bHoy[idx].col++;
+            } else if (hoursAgo < 48) {
+                const idx = 23 - Math.floor(hoursAgo - 24);
+                if (isFlex) bAyer[idx].flex++; else bAyer[idx].col++;
             }
         });
-        const { barsHtml, labelsHtml } = _velRenderBars(bHoy, 140, bAyer);
+        // Dos barras por hora, lado a lado. Ambas con split flex/colecta; la "previa"
+        // (24h anteriores) va más clara para distinguirla de las últimas 24h.
+        const maxVal = Math.max(1, ...bHoy.map(b => b.flex + b.col), ...bAyer.map(b => b.flex + b.col));
+        const BAR_H = 140;
+        const nowH = new Date().getHours();
+        let barsHtml = '', labelsHtml = '';
+        const stackHtml = (b, tot, extra) => {
+            const hpx = Math.max(tot > 0 ? 3 : 0, Math.round(tot / maxVal * BAR_H));
+            const fH = tot > 0 ? Math.round(b.flex / tot * hpx) : 0;
+            const cH = hpx - fH;
+            return `<div class="${extra}" style="height:${hpx}px">` +
+                `<div class="vcb-flex" style="height:${fH}px"></div>` +
+                `<div class="vcb-col" style="height:${cH}px"></div>` +
+                `</div>`;
+        };
+        for (let i = 0; i < 24; i++) {
+            const nb = bHoy[i], pb = bAyer[i];
+            const nowTot = nb.flex + nb.col, prevTot = pb.flex + pb.col;
+            const hourLabel = ((nowH - 23 + i + 24) % 24);
+            const hStr = String(hourLabel).padStart(2, '0');
+            barsHtml += `<div class="vel-chart-bar vc-dual" title="${hStr}:00 — ahora ${nowTot} (🏍️${nb.flex} 📦${nb.col}) · previo ${prevTot} (🏍️${pb.flex} 📦${pb.col})">` +
+                `<div class="vcb-pair">` +
+                    stackHtml(nb, nowTot, 'vcb-now') +
+                    stackHtml(pb, prevTot, 'vcb-prev') +
+                `</div></div>`;
+            labelsHtml += `<span class="${i === 23 ? 'vc-now' : ''}">${hStr}</span>`;
+        }
         const totalHoy  = bHoy.reduce((s, b) => s + b.flex + b.col, 0);
         const totalAyer = bAyer.reduce((s, b) => s + b.flex + b.col, 0);
-        const nowH = new Date().getHours();
-        const ayerHastaAhora = bAyer.slice(0, nowH + 1).reduce((s, b) => s + b.flex + b.col, 0);
-        const diff = totalHoy - ayerHastaAhora;
+        const diff = totalHoy - totalAyer;
         const diffStr = diff > 0 ? `+${diff}` : String(diff);
         return `<div class="vel-chart-bars">${barsHtml}</div>` +
             `<div class="vel-chart-labels">${labelsHtml}</div>` +
-            `<div class="vel-chart-avg">Hoy: <b>${totalHoy}</b> · Ayer: <b>${totalAyer}</b> · vs ayer a esta hora: <b>${diffStr}</b></div>` +
+            `<div class="vel-chart-avg">Últimas 24h: <b>${totalHoy}</b> · 24h previas: <b>${totalAyer}</b> · diferencia: <b>${diffStr}</b></div>` +
             `<div class="vel-chart-legend">` +
             `<span><i style="background:var(--green)"></i>Flex</span>` +
             `<span><i style="background:var(--blue)"></i>Colecta</span>` +
-            `<span><i style="background:var(--muted);opacity:.4"></i>Ayer</span></div>`;
+            `<span><i class="vcb-prev-legend"></i>oscuras = 24h previas</span></div>`;
     }
 
-    function _velRenderSemana() {
-        const d = window._velDates;
-        if (!d) return '';
-        const allDates = [...(d.histFlex || d.flex || []), ...(d.histColecta || d.colecta || [])];
-        const flexSet = new Set(d.histFlex || d.flex || []);
+    function _velRenderSemana(hist) {
+        if (!hist) return '<div class="vel-chart-avg">Cargando datos…</div>';
         const DIAS = ['Dom', 'Lun', 'Mar', 'Mié', 'Jue', 'Vie', 'Sáb'];
         const hoy = new Date(); hoy.setHours(0, 0, 0, 0);
         const buckets = [];
@@ -2717,32 +2814,42 @@
             const fin = new Date(dia); fin.setDate(fin.getDate() + 1);
             buckets.push({ dia, fin, flex: 0, col: 0, label: DIAS[dia.getDay()], date: `${dia.getDate()}/${dia.getMonth() + 1}` });
         }
-        allDates.forEach(s => {
+        // Días viejos (antes de ayer) salen del cache; hoy y ayer se recalculan con
+        // los datos frescos del load principal (así el cache no deja "hoy" viejo).
+        const ayer0 = new Date(hoy); ayer0.setDate(ayer0.getDate() - 1);
+        const d = window._velDates;
+        const tieneFresco = d && (d.histFlex || d.histColecta);
+        const corte = tieneFresco ? ayer0.getTime() : Infinity;
+        const asignar = (dates, key, desde, hasta) => (dates || []).forEach(s => {
             const t = new Date(s).getTime();
-            const isFlex = flexSet.has(s);
+            if (t < desde || t >= hasta) return;
             for (const b of buckets) {
-                if (t >= b.dia.getTime() && t < b.fin.getTime()) {
-                    if (isFlex) b.flex++; else b.col++;
-                    break;
-                }
+                if (t >= b.dia.getTime() && t < b.fin.getTime()) { b[key]++; break; }
             }
         });
+        // Cache → solo días previos a ayer (o todos si no hay datos frescos).
+        asignar(hist.flex, 'flex', -Infinity, corte);
+        asignar(hist.colecta, 'col', -Infinity, corte);
+        // Fresco → hoy + ayer.
+        if (tieneFresco) {
+            asignar(d.histFlex, 'flex', ayer0.getTime(), Infinity);
+            asignar(d.histColecta, 'col', ayer0.getTime(), Infinity);
+        }
         const maxVal = Math.max(1, ...buckets.map(b => b.flex + b.col));
         const BAR_H = 140;
-        const todayIdx = 6;
         let barsHtml = '', labelsHtml = '';
         buckets.forEach((b, i) => {
             const total = b.flex + b.col;
             const h = Math.max(total > 0 ? 4 : 0, Math.round((total / maxVal) * BAR_H));
             const flexH = total > 0 ? Math.round((b.flex / total) * h) : 0;
             const colH = h - flexH;
-            barsHtml += `<div class="vel-chart-bar vc-week-bar" title="${b.label} ${b.date} — ${total} ventas">` +
+            barsHtml += `<div class="vel-chart-bar vc-week-bar" title="${b.label} ${b.date} — ${total} ventas (🏍️${b.flex} 📦${b.col})">` +
                 (total > 0 ? `<span class="vcb-val">${total}</span>` : '') +
                 `<div class="vcb-stack" style="height:${h}px">` +
                 `<div class="vcb-flex" style="height:${flexH}px"></div>` +
-                `<div class="vcb-col" style="height:${colH}px"></div>` +
+                (colH > 0 ? `<div class="vcb-col" style="height:${colH}px"></div>` : '') +
                 `</div></div>`;
-            labelsHtml += `<span class="${i === todayIdx ? 'vc-now' : ''}">${b.label}<br><small>${b.date}</small></span>`;
+            labelsHtml += `<span class="${i === 6 ? 'vc-now' : ''}">${b.label}<br><small>${b.date}</small></span>`;
         });
         const totalWeek = buckets.reduce((s, b) => s + b.flex + b.col, 0);
         const avgPerDay = (totalWeek / 7).toFixed(0);
@@ -2752,20 +2859,41 @@
     }
 
     function _velRenderChart(mode) {
-        let content;
-        if (mode === 'vsAyer') content = _velRenderVsAyer();
-        else if (mode === 'semana') content = _velRenderSemana();
-        else content = _velRender24h();
         const el = document.getElementById('velChartContent');
-        el.innerHTML =
-            `<div class="vel-chart-tabs">` +
+        const tabs = `<div class="vel-chart-tabs">` +
             `<button class="${mode === '24h' ? 'active' : ''}" onclick="_velSetMode('24h')">24h</button>` +
             `<button class="${mode === 'vsAyer' ? 'active' : ''}" onclick="_velSetMode('vsAyer')">vs Ayer</button>` +
             `<button class="${mode === 'semana' ? 'active' : ''}" onclick="_velSetMode('semana')">Semana</button>` +
-            `</div>` +
-            `<div class="vel-chart">${content}` +
-            (mode !== 'vsAyer' ? `<div class="vel-chart-legend"><span><i style="background:var(--green)"></i>Flex</span><span><i style="background:var(--blue)"></i>Colecta</span></div>` : '') +
             `</div>`;
+        const legend = `<div class="vel-chart-legend"><span><i style="background:var(--green)"></i>Flex</span><span><i style="background:var(--blue)"></i>Colecta</span></div>`;
+
+        if (mode === '24h') {
+            el.innerHTML = tabs + `<div class="vel-chart">${_velRender24h()}${legend}</div>`;
+            return;
+        }
+        if (mode === 'vsAyer') {
+            el.innerHTML = tabs + `<div class="vel-chart">${_velRenderVsAyer()}</div>`;
+            return;
+        }
+        // Semana: needs lazy fetch (cacheado en localStorage el mismo día)
+        const hist = window._velHistCache;
+        if (hist) {
+            el.innerHTML = tabs + `<div class="vel-chart">${_velRenderSemana(hist)}${legend}</div>`;
+        } else {
+            el.innerHTML = tabs + `<div class="vel-chart"><div class="vel-prog">` +
+                `<div class="vel-prog-label">Cargando historial de la semana…</div>` +
+                `<div class="vel-prog-bar"><div class="vel-prog-fill" id="velProgFill"></div></div>` +
+                `<div class="vel-prog-pct" id="velProgPct">0%</div>` +
+                `</div></div>`;
+            _velFetchHist(pct => {
+                const f = document.getElementById('velProgFill');
+                const t = document.getElementById('velProgPct');
+                if (f) f.style.width = pct + '%';
+                if (t) t.textContent = pct + '%';
+            }).then(() => {
+                if (window._velChartMode === 'semana') _velRenderChart('semana');
+            });
+        }
     }
 
     window._velSetMode = function(mode) {
