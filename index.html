@@ -212,6 +212,50 @@
             margin-top: 8px; font-size: 14px; font-weight: 700; color: var(--text);
             font-family: 'Space Mono', monospace;
         }
+        /* Cartel grande: cambió el horario de despacho */
+        #horarioCambioModal { align-items: center; z-index: 400; }
+        .hc-sheet {
+            border-radius: 18px; max-width: 440px; margin: 0 12px;
+            border: 2px solid var(--red);
+            box-shadow: 0 0 0 4px rgba(255,60,60,0.15), 0 20px 60px rgba(0,0,0,0.6);
+            animation: hcPop 0.3s ease, hcShake 0.6s ease 0.3s;
+            text-align: center; padding: 22px 18px 20px;
+        }
+        .hc-title {
+            font-size: 22px; font-weight: 800; line-height: 1.15; color: var(--red);
+            letter-spacing: 0.5px; margin-bottom: 14px;
+        }
+        .hc-cuenta { margin: 12px 0; }
+        .hc-cuenta-nom {
+            font-size: 15px; font-weight: 800; margin-bottom: 6px;
+            display: inline-block; padding: 2px 12px; border-radius: 20px;
+        }
+        .hc-cuenta-nom.mikra { background: rgba(180,120,255,0.18); color: #c69bff; }
+        .hc-cuenta-nom.chaya { background: rgba(255,180,80,0.18); color: #ffbe55; }
+        .hc-row {
+            display: flex; align-items: center; justify-content: center; gap: 8px;
+            font-size: 15px; margin: 4px 0; flex-wrap: wrap;
+        }
+        .hc-row .hc-dia { color: var(--muted); min-width: 34px; text-align: right; font-weight: 700; }
+        .hc-old { color: var(--muted); text-decoration: line-through; font-family: 'Space Mono', monospace; }
+        .hc-arrow { color: var(--muted); }
+        .hc-new {
+            color: var(--green); font-weight: 800; font-family: 'Space Mono', monospace;
+            font-size: 17px;
+        }
+        .hc-ok {
+            margin-top: 18px; width: 100%; padding: 13px; border-radius: 12px;
+            background: var(--yellow); color: #000; border: none;
+            font-size: 16px; font-weight: 800; font-family: inherit; cursor: pointer;
+            -webkit-tap-highlight-color: transparent;
+        }
+        .hc-ok:active { transform: scale(0.98); }
+        @keyframes hcPop { from { transform: scale(0.8); opacity: 0; } to { transform: scale(1); opacity: 1; } }
+        @keyframes hcShake {
+            0%,100% { transform: translateX(0); }
+            20% { transform: translateX(-8px); } 40% { transform: translateX(8px); }
+            60% { transform: translateX(-5px); } 80% { transform: translateX(5px); }
+        }
         /* vs Ayer: dos barras por hora (ahora coloreada + previa gris) */
         .vc-dual .vcb-pair { display: flex; align-items: flex-end; gap: 2px; width: 100%; height: 100%; }
         .vcb-now, .vcb-prev { flex: 1; min-width: 0; border-radius: 3px 3px 0 0; display: flex; flex-direction: column; overflow: hidden; }
@@ -1586,6 +1630,15 @@
 
     <div class="compare-banner" id="compareBanner" style="display:none">👁 comparando · <span id="compareBannerAge">—</span></div>
 
+    <!-- Cartel grande: cambió el horario de despacho -->
+    <div class="modal-overlay" id="horarioCambioModal">
+        <div class="modal-sheet hc-sheet">
+            <div class="hc-title">⚠️ CAMBIÓ EL HORARIO<br>DE DESPACHO</div>
+            <div id="hcBody"></div>
+            <button class="hc-ok" onclick="descartarCambioHorario()">Entendido 👍</button>
+        </div>
+    </div>
+
     <!-- Barra de acciones compacta -->
     <div class="action-row">
         <button class="proy-toggle" id="proyToggle" onclick="toggleProy()" style="display:none">
@@ -2500,6 +2553,103 @@
         }
     }
 
+    // ── DETECCIÓN DE CAMBIO DE HORARIO ─────────────────────────────────────────
+    // Firma = cortes por día de la semana actual. Si ML cambia cualquier corte,
+    // la firma cambia vs la última vista (guardada en localStorage) → cartel grande.
+    // El cartel reaparece las próximas ~3 recargas (o hasta que se descarte).
+    const HORARIO_BASE_KEY = 'resumen_horario_baseline_v1';
+    const HC_SHOWS = 3; // cuántas recargas seguidas insiste el cartel
+
+    function _horarioFirma(cuenta) {
+        const h = HORARIOS[cuenta] || {};
+        const parts = [];
+        for (let d = 1; d <= 6; d++) {
+            if (h[d] && h[d].cutoff) parts.push(d + '=' + h[d].cutoff);
+        }
+        return parts.join('|');
+    }
+    function _parseFirma(f) {
+        const m = {};
+        (f || '').split('|').filter(Boolean).forEach(p => {
+            const i = p.indexOf('=');
+            m[p.slice(0, i)] = p.slice(i + 1);
+        });
+        return m;
+    }
+    function _horarioDiff(prevF, curF) {
+        const a = _parseFirma(prevF), b = _parseFirma(curF);
+        const DIAS = ['', 'Lun', 'Mar', 'Mié', 'Jue', 'Vie', 'Sáb'];
+        const out = [];
+        for (let d = 1; d <= 6; d++) {
+            const o = a[d] || null, n = b[d] || null;
+            if (o !== n) out.push({ dia: DIAS[d], old: o, new: n });
+        }
+        return out;
+    }
+
+    function _leerHorarioBase() {
+        try { return JSON.parse(localStorage.getItem(HORARIO_BASE_KEY)) || {}; } catch (e) { return {}; }
+    }
+    function _guardarHorarioBase(b) {
+        try { localStorage.setItem(HORARIO_BASE_KEY, JSON.stringify(b)); } catch (e) {}
+    }
+
+    function checkHorarioCambios() {
+        const base = _leerHorarioBase();
+        const aMostrar = []; // { cuenta, css, diff }
+        for (const c of CUENTAS) {
+            const firma = _horarioFirma(c.nombre);
+            if (!firma) continue; // sin datos → no comparar
+            const st = base[c.nombre];
+            if (!st) {
+                // Primera vez: fijar baseline sin alertar.
+                base[c.nombre] = { firma, showsLeft: 0, prevFirma: '' };
+                continue;
+            }
+            if (st.firma !== firma) {
+                // ML cambió el horario → nuevo cambio pendiente.
+                base[c.nombre] = { firma, prevFirma: st.firma, showsLeft: HC_SHOWS };
+            }
+            const cur = base[c.nombre];
+            if (cur.showsLeft > 0) {
+                aMostrar.push({
+                    cuenta: c.nombre, css: c.css,
+                    diff: _horarioDiff(cur.prevFirma, cur.firma)
+                });
+                cur.showsLeft--; // consumir una aparición por recarga
+            }
+        }
+        _guardarHorarioBase(base);
+        _renderCambioHorario(aMostrar);
+    }
+
+    function _renderCambioHorario(lista) {
+        const modal = document.getElementById('horarioCambioModal');
+        if (!lista.length) { modal.classList.remove('open'); return; }
+        const body = document.getElementById('hcBody');
+        body.innerHTML = lista.map(item => {
+            const filas = item.diff.length
+                ? item.diff.map(d =>
+                    `<div class="hc-row"><span class="hc-dia">${d.dia}</span>` +
+                    `<span class="hc-old">${escHtml(d.old || '—')}</span>` +
+                    `<span class="hc-arrow">→</span>` +
+                    `<span class="hc-new">${escHtml(d.new || '—')}</span></div>`
+                  ).join('')
+                : `<div class="hc-row"><span class="hc-new">revisá el nuevo horario</span></div>`;
+            return `<div class="hc-cuenta">` +
+                `<div class="hc-cuenta-nom ${item.css}">${escHtml(item.cuenta)}</div>` +
+                filas + `</div>`;
+        }).join('');
+        modal.classList.add('open');
+    }
+
+    window.descartarCambioHorario = function() {
+        const base = _leerHorarioBase();
+        for (const c of CUENTAS) if (base[c.nombre]) base[c.nombre].showsLeft = 0;
+        _guardarHorarioBase(base);
+        document.getElementById('horarioCambioModal').classList.remove('open');
+    };
+
     // ══════════════════════════════════════════════
     //  PROYECCIÓN — VELOCIDAD DE VENTAS
     // ══════════════════════════════════════════════
@@ -3284,6 +3434,7 @@
         document.body.classList.remove('actualizando');
         renderResultados(resultados, false);
         checkStaleness();
+        checkHorarioCambios();
         finProgreso();
         actualizarCompareBtn();
 
