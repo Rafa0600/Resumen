@@ -232,6 +232,7 @@
         }
         .hc-cuenta-nom.mikra { background: rgba(180,120,255,0.18); color: #c69bff; }
         .hc-cuenta-nom.chaya { background: rgba(255,180,80,0.18); color: #ffbe55; }
+        .hc-sub { font-size: 12px; color: var(--muted); margin: 2px 0 3px; }
         .hc-row {
             display: flex; align-items: center; justify-content: center; gap: 8px;
             font-size: 15px; margin: 4px 0; flex-wrap: wrap;
@@ -2554,37 +2555,23 @@
     }
 
     // ── DETECCIÓN DE CAMBIO DE HORARIO ─────────────────────────────────────────
-    // Firma = cortes por día de la semana actual. Si ML cambia cualquier corte,
-    // la firma cambia vs la última vista (guardada en localStorage) → cartel grande.
+    // Firma = los cortes que se MUESTRAN (getVistaSemanal), como conjunto único.
+    // No es por día: así el paso natural de cada día a "Colecta finalizada" NO
+    // cuenta como cambio (antes el cartel salía raro tipo "Mié 11:30 → —"). Solo
+    // salta cuando cambia la HORA de corte que ves. Guardado en localStorage.
     // El cartel reaparece las próximas ~3 recargas (o hasta que se descarte).
-    const HORARIO_BASE_KEY = 'resumen_horario_baseline_v1';
+    const HORARIO_BASE_KEY = 'resumen_horario_baseline_v2';
     const HC_SHOWS = 3; // cuántas recargas seguidas insiste el cartel
 
     function _horarioFirma(cuenta) {
-        const h = HORARIOS[cuenta] || {};
-        const parts = [];
-        for (let d = 1; d <= 6; d++) {
-            if (h[d] && h[d].cutoff) parts.push(d + '=' + h[d].cutoff);
-        }
-        return parts.join('|');
+        const v = getVistaSemanal(cuenta);
+        if (!v || v.tipo === 'sin_datos' || !v.dias || !v.dias.length) return '';
+        const cutoffs = [...new Set(v.dias.map(d => d.cutoff).filter(Boolean))].sort();
+        return cutoffs.join(',');
     }
-    function _parseFirma(f) {
-        const m = {};
-        (f || '').split('|').filter(Boolean).forEach(p => {
-            const i = p.indexOf('=');
-            m[p.slice(0, i)] = p.slice(i + 1);
-        });
-        return m;
-    }
-    function _horarioDiff(prevF, curF) {
-        const a = _parseFirma(prevF), b = _parseFirma(curF);
-        const DIAS = ['', 'Lun', 'Mar', 'Mié', 'Jue', 'Vie', 'Sáb'];
-        const out = [];
-        for (let d = 1; d <= 6; d++) {
-            const o = a[d] || null, n = b[d] || null;
-            if (o !== n) out.push({ dia: DIAS[d], old: o, new: n });
-        }
-        return out;
+    function _firmaLegible(f) {
+        if (!f) return '—';
+        return f.split(',').filter(Boolean).map(t => t + ' hs').join(' · ');
     }
 
     function _leerHorarioBase() {
@@ -2596,7 +2583,7 @@
 
     function checkHorarioCambios() {
         const base = _leerHorarioBase();
-        const aMostrar = []; // { cuenta, css, diff }
+        const aMostrar = []; // { cuenta, css, prevFirma, firma }
         for (const c of CUENTAS) {
             const firma = _horarioFirma(c.nombre);
             if (!firma) continue; // sin datos → no comparar
@@ -2607,15 +2594,12 @@
                 continue;
             }
             if (st.firma !== firma) {
-                // ML cambió el horario → nuevo cambio pendiente.
+                // Cambió la hora de corte mostrada → nuevo cambio pendiente.
                 base[c.nombre] = { firma, prevFirma: st.firma, showsLeft: HC_SHOWS };
             }
             const cur = base[c.nombre];
             if (cur.showsLeft > 0) {
-                aMostrar.push({
-                    cuenta: c.nombre, css: c.css,
-                    diff: _horarioDiff(cur.prevFirma, cur.firma)
-                });
+                aMostrar.push({ cuenta: c.nombre, css: c.css, prevFirma: cur.prevFirma, firma: cur.firma });
                 cur.showsLeft--; // consumir una aparición por recarga
             }
         }
@@ -2628,17 +2612,15 @@
         if (!lista.length) { modal.classList.remove('open'); return; }
         const body = document.getElementById('hcBody');
         body.innerHTML = lista.map(item => {
-            const filas = item.diff.length
-                ? item.diff.map(d =>
-                    `<div class="hc-row"><span class="hc-dia">${d.dia}</span>` +
-                    `<span class="hc-old">${escHtml(d.old || '—')}</span>` +
-                    `<span class="hc-arrow">→</span>` +
-                    `<span class="hc-new">${escHtml(d.new || '—')}</span></div>`
-                  ).join('')
-                : `<div class="hc-row"><span class="hc-new">revisá el nuevo horario</span></div>`;
+            const fila = item.prevFirma
+                ? `<div class="hc-row"><span class="hc-old">${escHtml(_firmaLegible(item.prevFirma))}</span>` +
+                  `<span class="hc-arrow">→</span>` +
+                  `<span class="hc-new">${escHtml(_firmaLegible(item.firma))}</span></div>`
+                : `<div class="hc-row"><span class="hc-new">${escHtml(_firmaLegible(item.firma))}</span></div>`;
             return `<div class="hc-cuenta">` +
                 `<div class="hc-cuenta-nom ${item.css}">${escHtml(item.cuenta)}</div>` +
-                filas + `</div>`;
+                `<div class="hc-sub">Colecta hasta:</div>` +
+                fila + `</div>`;
         }).join('');
         modal.classList.add('open');
     }
