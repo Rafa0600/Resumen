@@ -600,7 +600,7 @@
         .card-header-row {
             display: flex;
             justify-content: space-between;
-            align-items: center;
+            align-items: flex-start;
             gap: 8px;
             margin-bottom: 10px;
         }
@@ -609,6 +609,12 @@
         .chaya .card-name { color: var(--orange); }
         .total .card-name { color: var(--yellow); }
 
+        .card-left { display: flex; flex-direction: column; align-items: flex-start; gap: 2px; min-width: 0; }
+        .hor-meta {
+            display: flex; flex-direction: column; align-items: flex-start;
+            gap: 1px; text-align: left;
+            font-family: 'Space Mono', monospace; margin-top: 1px;
+        }
         .card-horario {
             display: flex;
             align-items: center;
@@ -616,6 +622,13 @@
             font-family: 'Space Mono', monospace;
             font-size: 12px;
             color: var(--muted-2);
+            white-space: nowrap;
+            flex-shrink: 0;
+        }
+        .hor-main { display: flex; align-items: center; gap: 4px; white-space: nowrap; }
+        .hor-sub {
+            display: flex; align-items: baseline; gap: 6px;
+            white-space: nowrap; line-height: 1.1;
         }
         .card-horario b { color: var(--text); font-weight: 700; }
         .card-horario.urgent b { }
@@ -649,7 +662,7 @@
         }
         .hb-head, .hb-row {
             display: grid;
-            grid-template-columns: 1.1fr 1.3fr 1.6fr;
+            grid-template-columns: 0.8fr 1fr 1.9fr;
             gap: 6px;
             align-items: baseline;
             padding: 4px 2px;
@@ -670,7 +683,7 @@
         .hb-row.hb-hoy { color: var(--text); }
         .hb-row.hb-hoy .hb-accion { color: var(--yellow); }
         .hb-row.hb-hoy .hb-dia { font-weight: 700; }
-        .hb-accion { font-weight: 700; color: var(--text); }
+        .hb-accion { font-weight: 700; color: var(--text); white-space: nowrap; }
         /* Despacho antes de las 14:00 → amarillo subrayado (hay que despachar temprano) */
         .hb-accion.hb-temprano, b.hor-temprano {
             color: var(--yellow) !important;
@@ -715,6 +728,8 @@
         .hor-fresh-time { font-size: 9px; font-weight: 600; opacity: 0.9; }
         .hor-fresh-time.ok  { color: var(--green); }
         .hor-fresh-time.old { color: var(--orange); }
+        .hor-upd { line-height: 1.1; }
+        .hor-upd .hor-fresh-time { font-size: 8.5px; opacity: 0.8; }
         /* Puntito de frescura en el chip cerrado */
         .hor-dot { font-size: 8px; vertical-align: middle; }
         .hor-dot.ok  { color: var(--green); }
@@ -3603,27 +3618,30 @@
         const cls = '';
         const prefijoDia = esHoy ? '' : `${headline.nombre} `;
 
-        // Puntito de frescura para el chip cerrado (verde <24 h, naranja si más viejo)
         const fresca = _frescuraHorario(cuentaNombre);
-        const dot = fresca ? ` <span class="hor-dot ${fresca.cls}" title="${escHtml(fresca.txt)}">●</span>` : '';
 
-        // Corte de hoy (o del próximo día con colecta) centrado arriba, sutil.
-        const corteMid = headline.cutoff
-            ? `<span class="hor-corte-mid">corte <b>${prefijoDia}${headline.cutoff}</b></span>`
-            : '';
-        const freshTime = fresca
-            ? `<span class="hor-fresh-time ${fresca.cls}">(${fresca.short})</span>`
-            : '';
-        const freshLine = (corteMid || freshTime)
-            ? `<div class="hor-fresh-line">${corteMid}${freshTime}</div>`
-            : '';
-
-        // Chip SIEMPRE expandible — también cuando el horario es igual toda la
-        // semana. Al tocar muestra el desglose con el corte y el paso/despacho.
+        // Chip = bloque de 2 líneas alineado a la derecha, todo el horario junto:
+        //   línea 1: 🚚 Pasan 12:45-14:45  ▾   (acción, no se corta)
+        //   línea 2: corte 12:15 · hoy 11:03   (corte de hoy + frescura, chico)
+        // El chip SIEMPRE es expandible (también cuando el horario es igual toda
+        // la semana) → al tocar muestra el desglose.
         const chipTemprano = _despachoTemprano(headline.action) ? ' hor-temprano' : '';
+        // Chip (derecha) = solo la acción: 🚚 Pasan 12:45-14:45 ▾
         const chip = `<div class="card-horario expandible ${cls}" id="chip_${uid}" title="${escHtml(fresca ? fresca.txt : '')}" onclick="event.stopPropagation(); toggleHorarioBreak('${uid}')">
-            ${icon} <b class="${chipTemprano}">${prefijoDia}${chipLabel}</b>${dot} <span class="hor-chevron">▾</span>
+            <div class="hor-main">${icon} <b class="${chipTemprano}">${prefijoDia}${chipLabel}</b> <span class="hor-chevron">▾</span></div>
         </div>`;
+        // Meta (izquierda, bajo el nombre): corte + última actualización, apilados y
+        // alineados a la izquierda para que no se mezclen con la acción de la derecha.
+        const corteLine = headline.cutoff
+            ? `<div class="hor-sub"><span class="hor-corte-mid">corte <b>${headline.cutoff}</b></span></div>`
+            : '';
+        const updLine = fresca
+            ? `<div class="hor-upd"><span class="hor-fresh-time ${fresca.cls}">act. ${fresca.short}</span></div>`
+            : '';
+        const meta = (corteLine || updLine)
+            ? `<div class="hor-meta">${corteLine}${updLine}</div>`
+            : '';
+        const freshLine = '';
 
         // Filas del desglose. Uniforme (mismo corte toda la semana) → una fila
         // con el rango de días; variado → día por día.
@@ -3661,7 +3679,7 @@
                 ${fresca ? `<div class="hb-fresh ${fresca.cls}">${fresca.txt}</div>` : ''}
             </div>
         </div>`;
-        return { chip, panel, freshLine };
+        return { chip, meta, panel, freshLine };
     }
 
     window.toggleHorarioBreak = function(uid) {
@@ -4039,10 +4057,12 @@
                  style="animation-delay:${i * 0.08}s"
                  onclick="toggleCard(this)">
                 <div class="card-header-row">
-                    <div class="card-name">${c.nombre}${ventasMini}</div>
+                    <div class="card-left">
+                        <div class="card-name">${c.nombre}${ventasMini}</div>
+                        ${hor.meta || ''}
+                    </div>
                     ${hor.chip}
                 </div>
-                ${hor.freshLine || ''}
                 ${hor.panel}
                 ${r.error
                     ? `<div class="error-badge">⚠️ Error al cargar</div>`
