@@ -832,14 +832,54 @@
             font-family: 'Space Mono', monospace;
         }
 
-        /* ── Buffered ── */
+        /* ── En procesamiento (buffered de ML) ── */
         .buffered-row {
             margin-top: 8px;
             text-align: center;
             font-size: 10px;
             color: var(--muted);
             font-family: 'Space Mono', monospace;
+            cursor: pointer;
         }
+        .buffered-row.proc-on { color: var(--orange); }
+        .proc-chip {
+            display: inline-flex; align-items: center; gap: 6px;
+            margin-top: 8px; padding: 4px 4px 4px 11px;
+            background: rgba(255,170,68,0.12);
+            border: 1px solid rgba(255,170,68,0.45);
+            color: var(--orange); border-radius: 20px;
+            font-size: 11px; font-family: 'Space Mono', monospace;
+            cursor: pointer; max-width: 100%;
+        }
+        .proc-chip b { color: #ffd199; }
+        .proc-chip .pc-x {
+            background: rgba(255,170,68,0.2); border: none; color: var(--orange);
+            width: 22px; height: 22px; border-radius: 50%; flex-shrink: 0;
+            font-size: 12px; line-height: 1; cursor: pointer; padding: 0;
+        }
+        .pu-tag.proc { background:rgba(255,170,68,0.18); color:var(--orange); }
+        /* Selector de días en procesamiento */
+        .proc-dia {
+            display: flex; align-items: center; gap: 10px;
+            padding: 11px 10px; margin-bottom: 6px;
+            background: var(--surface-2); border: 1px solid var(--border-bright);
+            border-radius: 10px; cursor: pointer;
+        }
+        .proc-dia.on { border-color: var(--orange); background: rgba(255,170,68,0.08); }
+        .proc-dia input { width: 20px; height: 20px; accent-color: var(--orange); flex-shrink: 0; margin: 0; }
+        .proc-dia .pd-main { flex: 1; min-width: 0; font-size: 14px; }
+        .proc-dia .pd-rel { font-size: 11px; color: var(--muted-2); margin-left: 4px; }
+        .proc-dia .pd-main small, .proc-dia .pd-num small { display: block; font-size: 10px; color: var(--muted); margin-top: 2px; }
+        .proc-dia .pd-num { text-align: right; font-size: 11px; color: var(--muted-2); flex-shrink: 0; }
+        .proc-dia .pd-num b { font-size: 17px; color: var(--text); font-family: 'Space Mono', monospace; }
+        .proc-dia.todos { background: none; border-style: dashed; }
+        .proc-apply {
+            width: 100%; margin-top: 8px; padding: 13px;
+            background: var(--orange); color: #000; border: none; border-radius: 10px;
+            font-size: 14px; font-weight: 700; font-family: inherit; cursor: pointer;
+        }
+        .proc-apply.quitar { background: var(--surface-2); color: var(--text); border: 1px solid var(--border-bright); }
+        .proc-hint { font-size: 10px; color: var(--muted); text-align: center; margin-top: 10px; line-height: 1.5; }
 
         /* ── Todo al día ── */
         .all-clear-compact {
@@ -1703,6 +1743,7 @@
         </div>
         <div class="hero-sub" id="heroSub">paquetes</div>
         <div class="hero-units" id="heroUnits"></div>
+        <div class="proc-chip" id="heroProc" style="display:none" onclick="abrirProcesamiento()"></div>
         <div class="hero-tiempo" id="heroTiempo" style="display:none">
             ⏱ <span class="ht-val" id="heroTiempoVal">—</span> de trabajo ahora
         </div>
@@ -1827,6 +1868,14 @@
             </div>
 
             <div class="set-section">
+                <div class="set-section-title">⏳ En procesamiento</div>
+                <div class="set-row">
+                    <div class="set-label">Sumar al resumen<small id="procAjusteSub">ventas que ML todavía no deja imprimir · te pregunta qué días</small></div>
+                    <label class="switch"><input type="checkbox" id="prefProc"><span class="slider"></span></label>
+                </div>
+            </div>
+
+            <div class="set-section">
                 <div class="set-section-title">Tiempo de preparación</div>
                 <div class="set-row">
                     <div class="set-label">Minutos cada 50 paquetes<small>base para estimar el tiempo de trabajo (detallada)</small></div>
@@ -1836,6 +1885,14 @@
             </div>
 
             <div class="set-hint">La proyección detecta sola los feriados de Argentina y salta los fines de semana: calcula el próximo corte real (ej. domingo → martes si el lunes es feriado).</div>
+        </div>
+    </div>
+
+    <!-- ── MODAL EN PROCESAMIENTO (elegir días a sumar) ── -->
+    <div class="modal-overlay" id="procModal">
+        <div class="modal-sheet">
+            <div class="modal-title"><span class="fd-modal-title-text">⏳ En procesamiento<div class="fd-modal-title-sub">ML todavía no deja imprimir estas etiquetas. Elegí qué días sumar al resumen.</div></span> <button class="modal-close" id="procClose">×</button></div>
+            <div id="procBody"></div>
         </div>
     </div>
 
@@ -1952,6 +2009,10 @@
     let   resultadosAnterior = null;   // datos del refresco previo (para comparar)
     let   cargando = false;
     let   comparando = false;
+    // "En procesamiento" sumado al resumen: SOLO en memoria (por única vez) →
+    // al cerrar la app se borra. Ver sección EN PROCESAMIENTO.
+    let   PROC_SEL  = new Set();   // días de liberación elegidos (YYYY-MM-DD)
+    let   PROC_DATA = null;        // { fetchedAt, cuentas: { [nombre]: { items, error } } }
 
     // ══════════════════════════════════════════════
     //  PREFERENCIAS (persistidas en localStorage)
@@ -3486,7 +3547,10 @@
 
         const [settled] = await Promise.all([
             Promise.allSettled(activas.map(c => cargarCuenta(c, liviano, _catalogoPromise))),
-            cargarHorarios()
+            cargarHorarios(),
+            // Si hay días "en procesamiento" sumados, refrescarlos junto con todo
+            // (lo que ML ya liberó deja de estar ahí → no se cuenta dos veces).
+            PROC_SEL.size ? cargarProcesamiento().catch(() => null) : null
         ]);
 
         const empty = () => ({ flex: 0, flexUni: 0, colecta: 0, colectaUni: 0, total: 0, totalUni: 0 });
@@ -3981,7 +4045,299 @@
         if (resultadosCache?.data) renderResultados(resultadosCache.data, resultadosCache.fromCache !== false);
     }
 
+    // ══════════════════════════════════════════════
+    //  EN PROCESAMIENTO (substatus "buffered" de ML)
+    //  Ventas que ML todavía no deja imprimir: cada envío trae el día en que se
+    //  libera (shipping_option.buffering.date). Se traen SOLO a pedido (no frenan
+    //  la carga normal) y los días elegidos se suman a "para imprimir" + desglose,
+    //  para saber de antemano cuánto preparar. La selección vive en memoria
+    //  (PROC_SEL): es por única vez, al cerrar la app se borra.
+    // ══════════════════════════════════════════════
+    function _hoyAR() {
+        return _fmtDiaAR(new Date(new Date().toLocaleString('en-US', { timeZone: 'America/Argentina/Buenos_Aires' })));
+    }
+
+    async function cargarProcesamiento(onProgress) {
+        const catalog = buildStockCatalog();
+        const hoy = _hoyAR();
+        const activas = cuentasActivas();
+        const prog = activas.map(() => 0);
+        const tick = (i, f) => { prog[i] = f; if (onProgress) onProgress(prog.reduce((a, b) => a + b, 0) / activas.length); };
+
+        const porCuenta = await Promise.all(activas.map(async (cuenta, i) => {
+            try {
+                let { access_token, user_id } = await getToken(cuenta);
+                const opts = () => ({ cache: 'no-store', headers: { 'Authorization': `Bearer ${access_token}` } });
+                const get = async url => {
+                    try { return await jsonConRetry(url, opts()); }
+                    catch (e) {
+                        invalidarToken(cuenta.proxy);
+                        ({ access_token, user_id } = await getToken(cuenta));
+                        return await jsonConRetry(url, opts());
+                    }
+                };
+
+                // 1) Órdenes en procesamiento, agrupadas por envío (un pack = varias órdenes, mismo envío).
+                const porEnvio = new Map();
+                for (let offset = 0; offset < 1000; offset += 50) {
+                    const data = await get(`${cuenta.proxy}/api/orders/search?seller=${user_id}&offset=${offset}&limit=50&sort=date_desc&shipping.substatus=buffered&_ts=${Date.now()}`);
+                    const orders = data.results || [];
+                    for (const o of orders) {
+                        const sid = o.shipping?.id;
+                        if (!sid) continue;
+                        const productos = (o.order_items || []).map(it => ({
+                            titulo: it.item?.title || 'Producto',
+                            sku: it.item?.seller_sku || it.item?.seller_custom_field || '',
+                            cantidad: it.quantity || 1
+                        }));
+                        const qty = productos.reduce((a, p) => a + p.cantidad, 0);
+                        const oid = String(o.id);
+                        const ex = porEnvio.get(sid);
+                        if (!ex) porEnvio.set(sid, { orderId: o.id, date: o.date_created || null, qty, productos, _orders: new Set([oid]) });
+                        else if (!ex._orders.has(oid)) {
+                            ex._orders.add(oid); ex.qty += qty; ex.productos.push(...productos);
+                            if (o.date_created && (!ex.date || o.date_created < ex.date)) ex.date = o.date_created;
+                        }
+                    }
+                    tick(i, 0.3);
+                    if (orders.length < 50) break;
+                }
+
+                // 2) Envíos en lotes de 40 → día en que se libera + flex/colecta.
+                const sids = [...porEnvio.keys()];
+                const lotes = [];
+                for (let k = 0; k < sids.length; k += 40) lotes.push(sids.slice(k, k + 40));
+                const items = [];
+                let hechos = 0, sig = 0;
+                const pool = async () => {
+                    while (sig < lotes.length) {
+                        const lote = lotes[sig++];
+                        let arr = [];
+                        try { arr = await get(`${cuenta.proxy}/api/shipments?ids=${lote.join(',')}&_ts=${Date.now()}`); } catch (e) {}
+                        for (const s of (Array.isArray(arr) ? arr : [])) {
+                            const m = porEnvio.get(s?.id);
+                            if (!m) continue;
+                            if (s.logistic_type) ltSet(s.id, s.logistic_type);
+                            if (s.substatus && s.substatus !== 'buffered') continue; // ya se liberó → lo cuenta la carga normal
+                            // "2026-10-13T00:00:00.000Z" = el DÍA (la Z es engañosa, no convertir zona)
+                            const lib = String(s.shipping_option?.buffering?.date || '').slice(0, 10) || 'sin-fecha';
+                            items.push({
+                                orderId: m.orderId, date: m.date, productos: m.productos, lib,
+                                qty: _unidadesReales(m.productos, catalog, m.qty),
+                                flex: s.logistic_type === 'self_service',
+                                // Para el filtro por día: cuenta el día en que se libera (nunca en el pasado)
+                                entrega: lib === 'sin-fecha' ? '' : (lib < hoy ? hoy : lib)
+                            });
+                        }
+                        tick(i, 0.3 + 0.7 * (++hechos / lotes.length));
+                    }
+                };
+                await Promise.all(Array.from({ length: Math.min(4, lotes.length) }, pool));
+                tick(i, 1);
+                return { items, error: false };
+            } catch (e) {
+                console.error(`[${cuenta.nombre}] en procesamiento:`, e);
+                tick(i, 1);
+                return { items: [], error: true };
+            }
+        }));
+        ltFlush();
+        const cuentas = {};
+        activas.forEach((c, i) => { cuentas[c.nombre] = porCuenta[i]; });
+        PROC_DATA = { fetchedAt: Date.now(), cuentas };
+        return PROC_DATA;
+    }
+
+    // Suma los días elegidos a "para imprimir" (conteos + detalle del desglose).
+    function _aplicarProcesamiento(resultados) {
+        if (!PROC_SEL.size || !PROC_DATA) return resultados;
+        // Los días que ya llegaron se liberan solos (pasan a "para imprimir") → fuera.
+        const hoy = _hoyAR();
+        for (const d of [...PROC_SEL]) if (d !== 'sin-fecha' && d < hoy) PROC_SEL.delete(d);
+        if (!PROC_SEL.size) return resultados;
+        const su = a => a.reduce((s, x) => s + (x.qty || 0), 0);
+        const det = x => ({ orderId: x.orderId, qty: x.qty, date: x.date, entrega: x.entrega, productos: x.productos, _proc: x.lib });
+        return resultados.map(r => {
+            const lista = (PROC_DATA.cuentas[r.cuenta.nombre]?.items || []).filter(x => PROC_SEL.has(x.lib));
+            if (!lista.length) return r;
+            // Sin duplicar: si ML ya la liberó y la carga normal la trae, no se suma de nuevo.
+            const ya = new Set([...(r.readyFlexDetalle || []), ...(r.readyColectaDetalle || []),
+                                ...(r.printedFlexDetalle || []), ...(r.printedColectaDetalle || [])]
+                .map(x => String(x.orderId)));
+            const nuevos = lista.filter(x => !ya.has(String(x.orderId)));
+            if (!nuevos.length) return r;
+            const fl = nuevos.filter(x => x.flex), co = nuevos.filter(x => !x.flex);
+            const rd = r.ready || {};
+            const ready = {
+                flex: (rd.flex || 0) + fl.length,       flexUni: (rd.flexUni || 0) + su(fl),
+                colecta: (rd.colecta || 0) + co.length, colectaUni: (rd.colectaUni || 0) + su(co)
+            };
+            ready.total = ready.flex + ready.colecta;
+            ready.totalUni = ready.flexUni + ready.colectaUni;
+            return {
+                ...r, ready,
+                readyFlexDetalle:    [...(r.readyFlexDetalle || []),    ...fl.map(det)],
+                readyColectaDetalle: [...(r.readyColectaDetalle || []), ...co.map(det)],
+                _proc: { n: nuevos.length, u: su(nuevos) }
+            };
+        });
+    }
+
+    // "2026-10-13" → "Mar 13" (corto) · "Mar 13/10" (largo)
+    function _procDia(d, largo) {
+        if (!d || d === 'sin-fecha') return 'sin fecha';
+        const [y, m, dd] = d.split('-').map(Number);
+        const dn = ['Dom', 'Lun', 'Mar', 'Mié', 'Jue', 'Vie', 'Sáb'][new Date(y, m - 1, dd).getDay()];
+        return largo ? `${dn} ${dd}/${m}` : `${dn} ${dd}`;
+    }
+    function _procRel(d) {
+        if (!d || d === 'sin-fecha') return '';
+        const [y, m, dd] = d.split('-').map(Number);
+        const [hy, hm, hd] = _hoyAR().split('-').map(Number);
+        const diff = Math.round((new Date(y, m - 1, dd) - new Date(hy, hm - 1, hd)) / 86400000);
+        return diff <= 0 ? 'hoy' : diff === 1 ? 'mañana' : diff === 2 ? 'pasado mañana' : `en ${diff} días`;
+    }
+    function _procDiasSelTxt() {
+        return [...PROC_SEL].sort().map(d => _procDia(d)).join(' · ');
+    }
+
+    // Abre el selector de días (desde Ajustes, el chip del hero o la fila ⏳ de una cuenta).
+    window.abrirProcesamiento = async function() {
+        const modal = document.getElementById('procModal');
+        const body  = document.getElementById('procBody');
+        modal.classList.add('open');
+        // Datos frescos si no hay o tienen más de 5 min
+        if (!PROC_DATA || Date.now() - PROC_DATA.fetchedAt > 5 * 60000) {
+            body.innerHTML = `<div class="vel-prog">` +
+                `<div class="vel-prog-label">Buscando ventas en procesamiento…</div>` +
+                `<div class="vel-prog-bar"><div class="vel-prog-fill" id="procProgFill"></div></div>` +
+                `<div class="vel-prog-pct" id="procProgPct">0%</div></div>`;
+            try {
+                await cargarProcesamiento(f => {
+                    const p = Math.round(f * 100);
+                    const fill = document.getElementById('procProgFill'), pct = document.getElementById('procProgPct');
+                    if (fill) fill.style.width = p + '%';
+                    if (pct) pct.textContent = p + '%';
+                });
+            } catch (e) {
+                body.innerHTML = `<div class="fd-empty">⚠️ No se pudo cargar. Cerrá y probá de nuevo.</div>`;
+                return;
+            }
+            if (!modal.classList.contains('open')) return;
+        }
+        _procRenderSelector();
+    };
+
+    function _procRenderSelector() {
+        const body = document.getElementById('procBody');
+        const porDia = new Map(); // lib → { n, u, flex, col, cuentas: {nombre: n} }
+        let hayError = false;
+        for (const [nombre, c] of Object.entries(PROC_DATA.cuentas)) {
+            if (c.error) hayError = true;
+            for (const x of c.items) {
+                const e = porDia.get(x.lib) || { n: 0, u: 0, flex: 0, col: 0, cuentas: {} };
+                e.n++; e.u += x.qty || 0;
+                if (x.flex) e.flex++; else e.col++;
+                e.cuentas[nombre] = (e.cuentas[nombre] || 0) + 1;
+                porDia.set(x.lib, e);
+            }
+        }
+        const dias = [...porDia.keys()].sort();
+        const aviso = hayError ? `<div class="fd-subtitle">⚠️ Una cuenta no respondió — puede faltar algo</div>` : '';
+        if (!dias.length) {
+            body.innerHTML = aviso + `<div class="fd-empty">No hay ventas en procesamiento 🎉</div>`;
+            if (PROC_SEL.size) { PROC_SEL.clear(); _procAplicarYRender(); }
+            return;
+        }
+        // Días elegidos que ya no tienen ventas en procesamiento → fuera.
+        for (const d of [...PROC_SEL]) if (!porDia.has(d)) PROC_SEL.delete(d);
+
+        const totN = dias.reduce((a, d) => a + porDia.get(d).n, 0);
+        const totU = dias.reduce((a, d) => a + porDia.get(d).u, 0);
+        const fila = (d) => {
+            const e = porDia.get(d);
+            const on = PROC_SEL.has(d);
+            const ctas = Object.entries(e.cuentas).map(([n, k]) => `${n} ${k}`).join(' · ');
+            const tipos = [e.flex ? `🏍️ ${e.flex}` : '', e.col ? `📦 ${e.col}` : ''].filter(Boolean).join(' ');
+            return `<label class="proc-dia${on ? ' on' : ''}">` +
+                `<input type="checkbox" class="proc-chk" value="${d}"${on ? ' checked' : ''}>` +
+                `<div class="pd-main"><b>${_procDia(d, true)}</b><span class="pd-rel">${_procRel(d)}</span><small>${ctas} · ${tipos}</small></div>` +
+                `<div class="pd-num"><b>${e.n}</b> paq<small>${e.u} u</small></div></label>`;
+        };
+        const todosOn = dias.every(d => PROC_SEL.has(d));
+        body.innerHTML = aviso +
+            `<label class="proc-dia todos${todosOn ? ' on' : ''}">` +
+                `<input type="checkbox" id="procTodos"${todosOn ? ' checked' : ''}>` +
+                `<div class="pd-main"><b>Todos los días</b></div>` +
+                `<div class="pd-num"><b>${totN}</b> paq<small>${totU} u</small></div></label>` +
+            dias.map(fila).join('') +
+            `<button class="proc-apply" id="procApply"></button>` +
+            `<div class="proc-hint">Es por única vez: queda sumado hasta que cierres la app (o tocás ✕ en el número grande). Cuando llega el día, ML los libera y se cuentan solos.</div>`;
+
+        const chks  = [...body.querySelectorAll('.proc-chk')];
+        const todos = document.getElementById('procTodos');
+        const btn   = document.getElementById('procApply');
+        const actualizar = () => {
+            const sel = chks.filter(c => c.checked).map(c => c.value);
+            chks.forEach(c => c.closest('.proc-dia').classList.toggle('on', c.checked));
+            todos.checked = sel.length === chks.length;
+            todos.closest('.proc-dia').classList.toggle('on', todos.checked);
+            const n = sel.reduce((a, d) => a + porDia.get(d).n, 0);
+            if (sel.length) { btn.textContent = `Sumar ${n} paquetes al resumen`; btn.classList.remove('quitar'); }
+            else if (PROC_SEL.size) { btn.textContent = 'Quitar del resumen'; btn.classList.add('quitar'); }
+            else { btn.textContent = 'Elegí al menos un día'; btn.classList.add('quitar'); }
+        };
+        chks.forEach(c => c.onchange = actualizar);
+        todos.onchange = () => { chks.forEach(c => c.checked = todos.checked); actualizar(); };
+        btn.onclick = () => {
+            const sel = chks.filter(c => c.checked).map(c => c.value);
+            if (!sel.length && !PROC_SEL.size) return;
+            PROC_SEL = new Set(sel);
+            document.getElementById('procModal').classList.remove('open');
+            document.getElementById('settingsModal').classList.remove('open');
+            _procAplicarYRender();
+            const n = sel.reduce((a, d) => a + porDia.get(d).n, 0);
+            const t = document.createElement('div');
+            t.className = 'fd-toast';
+            t.textContent = sel.length ? `⏳ +${n} en procesamiento sumados` : 'En procesamiento quitado';
+            document.body.appendChild(t);
+            setTimeout(() => t.remove(), 1800);
+        };
+        actualizar();
+    }
+
+    function _procAplicarYRender() {
+        sincronizarControles();
+        if (resultadosCache) renderResultados(resultadosCache.data, resultadosCache.fromCache !== false);
+    }
+
+    // Cuántas hay en procesamiento en una cuenta: del detalle traído a pedido si
+    // está; si no, del conteo de la carga normal (vista detallada).
+    function _procCta(nombre, r) {
+        const c = PROC_DATA?.cuentas[nombre];
+        if (c && !c.error) return { n: c.items.length, u: c.items.reduce((a, x) => a + (x.qty || 0), 0) };
+        return { n: r.buffered || 0, u: r.bufferedUni || 0 };
+    }
+
+    // Fila ⏳ de una cuenta / del total (tocar → elegir qué días sumar).
+    function _procFilaHTML(sumado, total) {
+        const abrir = `onclick="event.stopPropagation(); abrirProcesamiento()"`;
+        if (sumado && sumado.n) {
+            const resto = Math.max(0, (total?.n || 0) - sumado.n);
+            return `<div class="buffered-row proc-on" ${abrir}>⏳ +${sumado.n} en procesamiento · ${sumado.u}u${resto ? ` · ${resto} sin sumar` : ''}</div>`;
+        }
+        if (total && total.n > 0) return `<div class="buffered-row" ${abrir}>⏳ ${total.n} en procesamiento · ${total.u}u ›</div>`;
+        return '';
+    }
+
+    window.quitarProcesamiento = function() {
+        PROC_SEL.clear();
+        _procAplicarYRender();
+    };
+
     function renderResultados(resultados, fromCache = false) {
+        // Días "en procesamiento" elegidos → sumados a "para imprimir" (antes del filtro por día).
+        resultados = _aplicarProcesamiento(resultados);
         // ── FILTRO POR DÍA ──────────────────────────────────────────────
         // Si está activo, recontamos todo para el día objetivo. La proyección
         // (velocidad de ventas) sigue usando los datos completos (rawResultados).
@@ -4074,6 +4430,16 @@
             totReady === 1 ? 'paquete para imprimir' : 'paquetes para imprimir';
         document.getElementById('heroUnits').textContent =
             totReady > 0 ? `${totReadyU} unidad${totReadyU !== 1 ? 'es' : ''} total` : '';
+        // Chip "incluye N en procesamiento" (tocar → cambiar días · ✕ → quitar)
+        const procN = rawResultados.reduce((a, r) => a + (r._proc?.n || 0), 0);
+        const heroProc = document.getElementById('heroProc');
+        if (procN > 0) {
+            heroProc.innerHTML = `<span>⏳ +<b>${procN}</b> en procesamiento · ${_procDiasSelTxt()}</span>` +
+                `<button class="pc-x" title="Quitar" onclick="event.stopPropagation(); quitarProcesamiento()">✕</button>`;
+            heroProc.style.display = 'inline-flex';
+        } else {
+            heroProc.style.display = 'none';
+        }
         const avgEl = document.getElementById('heroAvg');
         const avg = formatAvg(totReady, totReadyU);
         if (avg) {
@@ -4149,7 +4515,7 @@
                             ${hasImpresos ? `<div class="expand-hint">toque para ver ${r.printed.total} ya impresos</div>` : ''}
                         `
                 }
-                ${r.buffered > 0 ? `<div class="buffered-row">⏳ ${r.buffered} buffered · ${r.bufferedUni || 0}u</div>` : ''}
+                ${_procFilaHTML(r._proc, _procCta(c.nombre, r))}
             </div>`;
         });
 
@@ -4199,7 +4565,9 @@
                     ${totalExpandible ? `<div class="expand-hint">toque para ver ${hasImpresosTotal ? totPrint + ' impresos' : ''}${hasImpresosTotal && hasEscanearTotal ? ' · ' : ''}${hasEscanearTotal ? totEsc + ' por escanear' : ''}</div>` : ''}
                 `
             }
-            ${totBuffered > 0 ? `<div class="buffered-row">⏳ ${totBuffered} buffered</div>` : ''}
+            ${_procFilaHTML(
+                procN ? { n: procN, u: rawResultados.reduce((a, r) => a + (r._proc?.u || 0), 0) } : null,
+                resultados.reduce((a, r) => { const p = _procCta(r.cuenta.nombre, r); return { n: a.n + p.n, u: a.u + p.u }; }, { n: 0, u: 0 }))}
         </div>`;
 
         document.getElementById('content').innerHTML = html;
@@ -4382,6 +4750,10 @@
         document.getElementById('prefEscanear').checked = PREFS.verEscanear;
         document.getElementById('prefMin50').value = PREFS.minPor50;
         actualizarMin50Hint();
+        document.getElementById('prefProc').checked = PROC_SEL.size > 0;
+        document.getElementById('procAjusteSub').textContent = PROC_SEL.size
+            ? `sumando: ${_procDiasSelTxt()} · se borra al cerrar la app`
+            : 'ventas que ML todavía no deja imprimir · te pregunta qué días';
     }
 
     // ══════════════════════════════════════════════
@@ -5650,9 +6022,11 @@
         const totalPaquetes = detalle.length;
         const totalUnidades = detalle.reduce((s, d) => s + (d.qty || 0), 0);
         const nombre = acct === 'Total' ? 'Total' : acct;
+        const nProc = detalle.filter(d => d._proc).length;
 
         document.getElementById('flexDesgloseTitle').innerHTML =
-            `${tipoLabel} ${escHtml(nombre)} · ${estadoLabel}<div class="fd-modal-title-sub">${totalPaquetes} paquetes · ${totalUnidades} unidades</div>`;
+            `${tipoLabel} ${escHtml(nombre)} · ${estadoLabel}<div class="fd-modal-title-sub">${totalPaquetes} paquetes · ${totalUnidades} unidades` +
+            `${nProc ? ` · <span style="color:var(--orange)">⏳ ${nProc} en procesamiento</span>` : ''}</div>`;
 
         window._desgloseState = { ordenado, catalog, hasCatalog, esImpresos, tipo };
         setDesgloseVista('detalle'); // siempre arranca en Detalle (no recuerda la última elección)
@@ -5714,7 +6088,8 @@
             });
             const headNum = orderId ? `#${escHtml(orderId)}` : 'sin nº';
             html += `<div class="pu-order${clickCls}"${orderAttr}${titleAttr}>` +
-                `<div class="pu-head"><span>${headNum}${hora ? ` <span class="fd-muted" style="font-weight:400">· ${escHtml(hora)}</span>` : ''} ${iconDe(d)}</span><b>${totU} u</b></div>` +
+                `<div class="pu-head"><span>${headNum}${hora ? ` <span class="fd-muted" style="font-weight:400">· ${escHtml(hora)}</span>` : ''} ${iconDe(d)}` +
+                `${d._proc ? `<span class="pu-tag proc">⏳ ${_procDia(d._proc)}</span>` : ''}</span><b>${totU} u</b></div>` +
                 filasHtml +
             `</div>`;
         });
@@ -5852,6 +6227,21 @@
             actualizarMin50Hint();
             if (resultadosCache) renderResultados(resultadosCache.data, true);
         };
+
+        // En procesamiento: prender → pregunta qué días · apagar → quitar.
+        // No se guarda en PREFS: es por única vez (vive en memoria).
+        document.getElementById('prefProc').onchange = e => {
+            if (e.target.checked) {
+                e.target.checked = PROC_SEL.size > 0; // queda prendido solo si se eligen días
+                abrirProcesamiento();
+            } else {
+                quitarProcesamiento();
+            }
+        };
+        const procModal = document.getElementById('procModal');
+        const cerrarProc = () => { procModal.classList.remove('open'); sincronizarControles(); };
+        document.getElementById('procClose').onclick = cerrarProc;
+        procModal.onclick = e => { if (e.target === procModal) cerrarProc(); };
     }
 
     // ══════════════════════════════════════════════
