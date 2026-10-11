@@ -1043,6 +1043,17 @@
         .header-time.ok    { color: var(--muted-2); }
         .header-time.old   { color: var(--orange); }
         .header-time.stale { color: var(--red); font-weight: 700; }
+        /* Título y hora siempre en UNA línea (con 3 botones el header se partía en celular) */
+        .header { gap: 8px; }
+        .header-title { white-space: nowrap; flex-shrink: 0; }
+        .header-right { min-width: 0; }
+        .header-time { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-width: 0; }
+        .gear-btn { flex-shrink: 0; }
+        @media (max-width: 480px) {
+            .header { padding: 12px 12px; }
+            .header-right { gap: 6px; }
+            .header-time { font-size: 10px; }
+        }
 
         /* ── MODAL DE AJUSTES ── */
         .modal-overlay {
@@ -1439,6 +1450,51 @@
             background: var(--surface-2); color: var(--blue); border: 1px dashed var(--border);
             font-size: 13px; font-weight: 700; cursor: pointer; font-family: inherit; }
 
+        /* ── Buscador de comprador (lupa) ── */
+        .bq-bar { display: flex; gap: 6px; position: sticky; top: -16px; z-index: 2;
+            background: var(--surface); padding: 6px 0 4px; }
+        .bq-bar input { flex: 1; min-width: 0; padding: 11px 12px; border-radius: 10px;
+            border: 1px solid var(--border-bright); background: var(--surface-2); color: var(--text);
+            font-size: 15px; font-family: inherit; outline: none; }
+        .bq-bar input:focus { border-color: var(--yellow); }
+        .bq-bar button { padding: 0 16px; border-radius: 10px; border: none; background: var(--yellow);
+            color: #000; font-weight: 800; font-size: 14px; font-family: inherit; cursor: pointer; }
+        .bq-hint { font-size: 10.5px; color: var(--muted); margin: 2px 2px 10px; }
+        .bq-loading { text-align: center; color: var(--muted-2); font-size: 13px; padding: 24px 0; }
+        .bq-loading b { color: var(--text); }
+        #buscarResult { display: flex; flex-direction: column; gap: 10px; }
+        .bq-head { background: var(--surface-2); border: 1px solid var(--border-bright); border-radius: 14px; padding: 12px; }
+        .bq-nick { font-size: 17px; font-weight: 800; color: var(--yellow); display: flex; align-items: center;
+            gap: 8px; word-break: break-all; }
+        .bq-copy { font-size: 10.5px; font-weight: 600; color: var(--muted); border: 1px solid var(--border);
+            border-radius: 6px; padding: 2px 6px; cursor: pointer; flex-shrink: 0; }
+        .bq-sub { font-size: 11.5px; color: var(--muted-2); margin-top: 3px; }
+        .bq-stats { display: grid; grid-template-columns: repeat(auto-fit, minmax(56px, 1fr)); gap: 6px; margin-top: 10px; }
+        .bq-stats > div { background: var(--surface); border-radius: 10px; padding: 7px 4px; text-align: center; }
+        .bq-stats b { display: block; font-family: 'Space Mono', monospace; font-size: 18px; color: var(--text); line-height: 1.15; }
+        .bq-stats span { font-size: 9px; color: var(--muted); text-transform: uppercase; letter-spacing: .4px; }
+        .bq-stats .ok b { color: var(--green); }
+        .bq-stats .warn b { color: var(--orange); }
+        .bq-stats .bad b { color: var(--red); }
+        .bq-venta .sc-top { gap: 6px; }
+        .bq-fecha { font-size: 11.5px; color: var(--muted-2); font-family: 'Space Mono', monospace; margin-right: auto; white-space: nowrap; }
+        .bq-row { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+        .bq-total { font-family: 'Space Mono', monospace; font-weight: 700; color: var(--text); font-size: 14px; white-space: nowrap; }
+        .bq-cuando { font-weight: 600; opacity: .85; }
+        .bq-tags { display: flex; flex-wrap: wrap; gap: 5px; }
+        .bq-tag { font-size: 11px; font-weight: 700; padding: 3px 8px; border-radius: 20px;
+            background: var(--surface-2); color: var(--muted-2); }
+        .bq-tag.ok { background: rgba(52,211,153,.13); color: var(--green); }
+        .bq-tag.bad { background: rgba(255,84,84,.16); color: var(--red); }
+        .bq-tag.mono { font-family: 'Space Mono', monospace; cursor: pointer; }
+        .bq-match { box-shadow: 0 0 0 2px var(--yellow); }
+        .bq-match-lbl { font-size: 11.5px; font-weight: 800; color: var(--yellow); }
+        .bq-buyer-btn { display: flex; flex-direction: column; align-items: flex-start; gap: 2px; width: 100%;
+            padding: 10px 12px; border-radius: 12px; border: 1px solid var(--border-bright);
+            background: var(--surface-2); color: var(--text); font-family: inherit; font-size: 14px;
+            cursor: pointer; text-align: left; }
+        .bq-buyer-btn span { font-size: 11px; color: var(--muted); }
+
         /* ── MODAL PRUEBA U/PAQ ── */
         .pu-order { border:1px solid var(--border); border-radius:10px; padding:8px 10px; margin-bottom:8px; background:rgba(255,255,255,0.02); }
         .pu-head { display:flex; justify-content:space-between; align-items:baseline; font-size:12px; color:var(--muted-2); margin-bottom:5px; }
@@ -1614,6 +1670,7 @@
         <div class="header-title">📦 <span>Despachos</span></div>
         <div class="header-right">
             <div class="header-time" id="headerTime">—</div>
+            <button class="gear-btn" id="buscarBtn" aria-label="Buscar comprador o venta" title="Buscar comprador / venta / envío">🔍</button>
             <button class="gear-btn" id="scanBtn" aria-label="Escanear envío" title="Escanear etiqueta">📷</button>
             <button class="gear-btn" id="gearBtn" aria-label="Ajustes">⚙️</button>
         </div>
@@ -1837,6 +1894,20 @@
         <div class="modal-sheet">
             <div class="modal-title"><span class="fd-modal-title-text">📊 Ventas por hora</span> <button class="modal-close" id="velChartClose">×</button></div>
             <div id="velChartContent"></div>
+        </div>
+    </div>
+
+    <!-- ── BUSCADOR: comprador / venta / pack / envío ── -->
+    <div class="modal-overlay" id="buscarModal">
+        <div class="modal-sheet">
+            <div class="modal-title"><span class="fd-modal-title-text">🔍 Buscar comprador</span> <button class="modal-close" id="buscarClose">×</button></div>
+            <div class="bq-bar">
+                <input id="buscarInput" type="search" autocomplete="off" autocapitalize="off" spellcheck="false"
+                       placeholder="Usuario, nº de venta, pack o envío">
+                <button id="buscarGo">Buscar</button>
+            </div>
+            <div class="bq-hint">Ej: NABCARAM · 2000015466939197 · 48229256374 · MEL…</div>
+            <div id="buscarResult"></div>
         </div>
     </div>
 
@@ -4763,37 +4834,69 @@
         } catch (e) { return ''; }
     }
 
-    // Recibe TODAS las órdenes del pedido (un pack puede tener varias) y arma la lista completa.
-    function _scanItemsHTML(orders, ship) {
-        const imgMap = _getImgMap();
+    // Orden de las filas de un pedido: artículo A-Z → color A-Z → talle de MAYOR a menor
+    // (pedido explícito para la lupa/escáner; el desglose del dashboard sigue de menor a mayor).
+    function _cmpFilaPedido(a, b) {
+        const n = (a.nombre || '').localeCompare(b.nombre || '', 'es'); if (n) return n;
+        const c = (a.color || '').localeCompare(b.color || '', 'es'); if (c) return c;
+        const ta = _talleOrder(a.talle), tb = _talleOrder(b.talle);
+        if (ta === 999 || tb === 999) return ta - tb; // sin talle reconocible → al final
+        return tb - ta;
+    }
+
+    // Todas las órdenes del pedido (un pack de ML puede tener varias) → filas descifradas y
+    // AGRUPADAS: lo que es igual (mismo SKU/artículo/color/talle) va en una sola fila con la
+    // cantidad total. Ej: 5 × "remera negra M ×1" → "remera negra M ×5". Ordenadas con _cmpFilaPedido.
+    function _filasPedido(orders) {
         let catalog = null;
         try { catalog = (typeof buildStockCatalog === 'function') ? buildStockCatalog() : null; } catch (e) {}
-        const items = [];
-        (orders || []).forEach(od => (od && od.order_items || []).forEach(it => items.push(it)));
-        if (items.length) {
-            let html = '';
-            items.forEach(it => {
-                const t = it.item || {};
-                const skuVenta = t.seller_sku || t.seller_custom_field || '';
-                const prod = { sku: skuVenta, titulo: t.title || '', cantidad: it.quantity || 1 };
-                const orderVars = (t.variation_attributes || []).map(v => v.value_name).filter(Boolean).join(' · ');
-                // Descifra: conjunto → varias filas; multipack "Pack X3" → 1 fila ×3; normal → 1 fila.
-                let filas = [];
-                try { filas = _desglosarProducto(prod, catalog); } catch (e) {}
-                if (!filas.length) filas = [{ sku: skuVenta, nombre: t.title || '—', color: '', talle: '', cantidad: prod.cantidad, mult: 1, tipo: 'normal' }];
-                filas.forEach(g => {
-                    const u = (g.cantidad || 1) * (g.mult || 1);
-                    const ct  = ([g.color, g.talle].filter(Boolean).join(' · ')) || orderVars;
-                    const sub = [g.sku ? 'SKU ' + g.sku : '', ct].filter(Boolean).join('  ·  ');
-                    const tag = g.tipo === 'conjunto' ? '<span class="pu-tag conj">conjunto</span>'
-                              : (g.mult > 1 ? `<span class="pu-tag pack">pack ×${g.mult}</span>` : '');
-                    html += `<div class="sc-item">${_fdThumb(g.sku, imgMap)}` +
-                        `<div class="sc-item-info"><div class="sc-item-title">${escHtml(g.nombre)} ${tag}</div>` +
-                        (sub ? `<div class="sc-item-sub">${escHtml(sub)}</div>` : '') + `</div>` +
-                        `<div class="sc-item-qty">×${u}</div></div>`;
-                });
+        const grupos = new Map();
+        (orders || []).forEach(od => (od && od.order_items || []).forEach(it => {
+            const t = it.item || {};
+            const skuVenta = t.seller_sku || t.seller_custom_field || '';
+            const prod = { sku: skuVenta, titulo: t.title || '', cantidad: it.quantity || 1 };
+            // Variación de la orden: respaldo si el catálogo no tiene color/talle de ese SKU
+            const attrs = t.variation_attributes || [];
+            const esDe = (a, re) => re.test(String(a.id || '') + ' ' + String(a.name || ''));
+            const vColor = (attrs.find(a => esDe(a, /COLOR/i)) || {}).value_name || '';
+            const vTalle = (attrs.find(a => esDe(a, /SIZE|TALLE/i)) || {}).value_name || '';
+            const vExtra = attrs.filter(a => !esDe(a, /COLOR|SIZE|TALLE/i)).map(a => a.value_name).filter(Boolean).join(' · ');
+            // Descifra: conjunto → una fila por componente; multipack "Pack X3" → base ×3; normal → 1 fila.
+            let filas = [];
+            try { filas = _desglosarProducto(prod, catalog); } catch (e) {}
+            if (!filas.length) filas = [{ sku: skuVenta, nombre: t.title || '—', color: '', talle: '', cantidad: prod.cantidad, mult: 1, tipo: 'normal' }];
+            // Un "conjunto" cuyos componentes son todos el MISMO SKU es en realidad un pack (ej. X5 remeras)
+            const conjReal = new Set(filas.map(f => f.sku)).size > 1;
+            filas.forEach(g => {
+                // Sin título en el catálogo el componente viene con el SKU como nombre → usar el título de ML
+                const nombre = (g.nombre && g.nombre !== g.sku) ? g.nombre : (t.title || g.nombre || '—');
+                const color = g.color || vColor;
+                const talle = g.talle || vTalle;
+                const extra = (g.color || g.talle) ? '' : vExtra;
+                const key = [g.sku, nombre, color, talle, extra].join('|');
+                const u = (g.cantidad || 1) * (g.mult || 1);
+                const ex = grupos.get(key);
+                if (ex) ex.u += u;
+                else grupos.set(key, { sku: g.sku, nombre, color, talle, extra, u, conj: g.tipo === 'conjunto' && conjReal });
             });
-            return html;
+        }));
+        return [...grupos.values()].sort(_cmpFilaPedido);
+    }
+
+    // Recibe TODAS las órdenes del pedido y arma la lista (agrupada y ordenada).
+    function _scanItemsHTML(orders, ship) {
+        const imgMap = _getImgMap();
+        const filas = _filasPedido(orders);
+        if (filas.length) {
+            return filas.map(g => {
+                const ct = [g.color, g.extra, g.talle].filter(Boolean).join(' · ');
+                const sub = [g.sku ? 'SKU ' + g.sku : '', ct].filter(Boolean).join('  ·  ');
+                const tag = g.conj ? '<span class="pu-tag conj">conjunto</span>' : '';
+                return `<div class="sc-item">${_fdThumb(g.sku, imgMap)}` +
+                    `<div class="sc-item-info"><div class="sc-item-title">${escHtml(g.nombre)} ${tag}</div>` +
+                    (sub ? `<div class="sc-item-sub">${escHtml(sub)}</div>` : '') + `</div>` +
+                    `<div class="sc-item-qty">×${g.u}</div></div>`;
+            }).join('');
         }
         // Respaldo: shipping_items del envío (lista todo lo del paquete, aunque sin SKU/variación)
         const sitems = (ship && ship.shipping_items) || [];
@@ -4848,6 +4951,307 @@
         document.getElementById('scanResult').innerHTML =
             `<div class="sc-err">😕 <b>${escHtml(msg)}</b></div>` +
             `<button class="scan-again" onclick="reintentarScan()">📷 Intentar de nuevo</button>`;
+    }
+
+    // ══════════════════════════════════════════════
+    //  BUSCADOR (lupa): comprador / venta / pack / envío → historial completo
+    //  1) Resuelve lo tipeado a un COMPRADOR (buyer id):
+    //     · texto  → orders/search?q= (matchea el nickname, también parcial)
+    //     · número → orden, pack o envío (en las dos cuentas a la vez)
+    //  2) Trae TODAS sus compras en Mikra y Chaya (orders/search?buyer=),
+    //     sus envíos (batch) y sus reclamos (claims/search por complainant).
+    // ══════════════════════════════════════════════
+    let _bqSeq = 0; // descarta resultados de búsquedas viejas si se tipea otra
+
+    // GET autenticado SIN reintentar 4xx: un 404/403 = "no es de esta cuenta" → null rápido
+    // (jsonConRetry reintenta hasta los 404 con esperas y la búsqueda se hacía lenta).
+    async function _bqGet(cta, path) {
+        for (let intento = 0; intento < 2; intento++) {
+            const { access_token } = await getToken(cta);
+            const sep = path.includes('?') ? '&' : '?';
+            let resp;
+            try {
+                resp = await fetchConTimeout(`${cta.proxy}${path}${sep}_ts=${Date.now()}`,
+                    { cache: 'no-store', headers: { 'Authorization': `Bearer ${access_token}` } });
+            } catch (e) { if (intento === 0) continue; throw e; }
+            if (resp.ok) return resp.json();
+            if (resp.status === 401 && intento === 0) { invalidarToken(cta.proxy); continue; }
+            if (resp.status === 429 && intento === 0) { await sleep(800); continue; }
+            if (resp.status >= 400 && resp.status < 500) return null;
+            throw new Error('HTTP ' + resp.status);
+        }
+        return null;
+    }
+
+    // Fecha relativa: "hoy 14:32" · "ayer 23:10" · "hace 5 días · 6/10 14:20".
+    // Cuenta días de CALENDARIO (algo de las 23:50 de ayer es "ayer" aunque pasaron 20 min).
+    function _bqFecha(iso) {
+        if (!iso) return '';
+        const d = new Date(iso);
+        if (isNaN(d)) return '';
+        const hora = d.toLocaleTimeString('es-AR', { hour: '2-digit', minute: '2-digit', hour12: false });
+        const hoy0 = new Date(); hoy0.setHours(0, 0, 0, 0);
+        const d0 = new Date(d); d0.setHours(0, 0, 0, 0);
+        const dias = Math.round((hoy0 - d0) / 86400000);
+        if (dias === 0) return `hoy ${hora}`;
+        if (dias === 1) return `ayer ${hora}`;
+        const otroAnio = d.getFullYear() !== new Date().getFullYear();
+        const fecha = d.toLocaleDateString('es-AR', Object.assign(
+            { day: 'numeric', month: 'numeric' }, otroAnio ? { year: '2-digit' } : {}));
+        return dias > 1 ? `hace ${dias} días · ${fecha} ${hora}` : `${fecha} ${hora}`;
+    }
+
+    function _bqError(msg) {
+        document.getElementById('buscarResult').innerHTML = `<div class="sc-err">😕 <b>${escHtml(msg)}</b></div>`;
+    }
+
+    // Número → { buyerId, nick, claves[] } (claves = ids para resaltar la venta buscada)
+    async function _bqResolverNumero(raw) {
+        const { cands } = _extraerCandidatos(raw);
+        if (!cands.length) return null;
+        const desde = (o, claves) => (o && o.id && o.buyer && o.buyer.id)
+            ? { buyerId: o.buyer.id, nick: o.buyer.nickname, claves } : null;
+        const tareas = [];
+        for (const cand of cands) for (const cta of CUENTAS) {
+            // Venta (orden)
+            tareas.push(_bqGet(cta, `/api/orders/${cand}`)
+                .then(o => desde(o, [cand])).catch(() => null));
+            // Pack (varias órdenes en un mismo paquete)
+            tareas.push(_bqGet(cta, `/api/packs/${cand}`).then(async pk => {
+                const oid = pk && pk.orders && pk.orders[0] && pk.orders[0].id;
+                if (!oid) return null;
+                return desde(await _bqGet(cta, `/api/orders/${oid}`), [cand]);
+            }).catch(() => null));
+            // Envío / nº de seguimiento
+            tareas.push(_bqGet(cta, `/api/shipments/${cand}`).then(async sh => {
+                if (!sh || !sh.id) return null;
+                const oid = sh.order_id || (sh.order && sh.order.id);
+                if (!oid) return null;
+                return desde(await _bqGet(cta, `/api/orders/${oid}`), [cand, String(oid)]);
+            }).catch(() => null));
+        }
+        return _primerExito(tareas);
+    }
+
+    // Texto → compradores cuyo nickname contiene lo buscado (en las dos cuentas)
+    async function _bqBuscarNick(q) {
+        const ql = q.toLowerCase();
+        const porId = new Map();
+        await Promise.all(CUENTAS.map(async cta => {
+            const { user_id } = await getToken(cta);
+            const r = await _bqGet(cta, `/api/orders/search?seller=${user_id}&q=${encodeURIComponent(q)}&sort=date_desc&limit=50`).catch(() => null);
+            ((r && r.results) || []).forEach(o => {
+                const b = o.buyer;
+                if (!b || !b.id) return;
+                // q también matchea títulos de artículos → quedarse solo con nicknames que coinciden
+                if (!String(b.nickname || '').toLowerCase().includes(ql)) return;
+                const e = porId.get(b.id) || { id: b.id, nick: b.nickname, ventas: new Set(), ult: '' };
+                e.ventas.add(String(o.pack_id || o.id)); // un pack = una compra (igual que el historial)
+                if ((o.date_created || '') > e.ult) e.ult = o.date_created;
+                porId.set(b.id, e);
+            });
+        }));
+        return [...porId.values()]
+            .map(e => ({ id: e.id, nick: e.nick, n: e.ventas.size, ult: e.ult }))
+            .sort((a, b) => b.ult.localeCompare(a.ult));
+    }
+
+    // Historial del comprador en UNA cuenta: órdenes → ventas (pack) + envío + reclamos
+    async function _bqHistorialCuenta(cta, buyerId) {
+        const { user_id } = await getToken(cta);
+        const orders = [];
+        for (let off = 0; off < 200; off += 50) {
+            const r = await _bqGet(cta, `/api/orders/search?seller=${user_id}&buyer=${buyerId}&sort=date_desc&limit=50&offset=${off}`);
+            const res = (r && r.results) || [];
+            orders.push(...res);
+            if (res.length < 50) break;
+        }
+        if (!orders.length) return [];
+
+        // Envíos en lotes de 40 (1 request por lote)
+        const sids = [...new Set(orders.map(o => o.shipping && o.shipping.id).filter(Boolean).map(String))];
+        const ships = new Map();
+        for (let i = 0; i < sids.length; i += 40) {
+            const arr = await _bqGet(cta, `/api/shipments?ids=${sids.slice(i, i + 40).join(',')}`).catch(() => null);
+            (Array.isArray(arr) ? arr : []).forEach(s => { if (s && s.id) ships.set(String(s.id), s); });
+        }
+
+        // Reclamos / cancelaciones / devoluciones de este comprador contra esta cuenta (1 request)
+        let claims = [];
+        try {
+            const c = await _bqGet(cta, `/api/post-purchase/v1/claims/search?player_role=complainant&player_user_id=${buyerId}&limit=50`);
+            claims = (c && c.data) || [];
+        } catch (e) {}
+
+        // Una VENTA = un pack (varias órdenes) o una orden suelta
+        const ventas = new Map();
+        orders.forEach(o => {
+            const key = String(o.pack_id || o.id);
+            const v = ventas.get(key) || { key, cta, orders: [], ship: null, fecha: o.date_created };
+            v.orders.push(o);
+            const sid = o.shipping && o.shipping.id;
+            if (sid && !v.ship) v.ship = ships.get(String(sid)) || null;
+            if ((o.date_created || '') < (v.fecha || '')) v.fecha = o.date_created;
+            ventas.set(key, v);
+        });
+        // El reclamo puede colgar de la orden, del pack o del envío
+        ventas.forEach(v => {
+            const ids = new Set([v.key, ...v.orders.map(o => String(o.id)), v.ship ? String(v.ship.id) : ''].filter(Boolean));
+            v.claims = claims.filter(c => ids.has(String(c.resource_id)));
+        });
+        return [...ventas.values()];
+    }
+
+    // Tipos reales que devuelve claims/search (ML usa "returns" en plural)
+    const _BQ_CLAIM_T = { mediations: 'Reclamo', cancel_purchase: 'Cancelación', returns: 'Devolución',
+                          return: 'Devolución', change: 'Cambio', changes: 'Cambio' };
+
+    function _bqClaimsHTML(claims) {
+        if (!claims || !claims.length) return '<span class="bq-tag ok">Sin reclamos</span>';
+        return claims.map(c => {
+            const t = _BQ_CLAIM_T[c.type] || 'Reclamo';
+            const abierto = c.status === 'opened';
+            const med = c.stage === 'dispute' ? ' · mediación ML' : '';
+            return `<span class="bq-tag ${abierto ? 'bad' : ''}">⚠️ ${escHtml(t)} ${abierto ? 'ABIERTO' : 'cerrado'}${med}</span>`;
+        }).join('');
+    }
+
+    function _bqVentaHTML(v, claves) {
+        const { cta, orders, ship } = v;
+        const est = _estadoEnvioTxt(ship, orders[0]);
+        const hist = (ship && ship.status_history) || {};
+        // Entregado → la fecha sola (el estado ya dice "Entregado"); si no, cuándo se despachó
+        const cuando = hist.date_delivered ? _bqFecha(hist.date_delivered)
+                     : hist.date_shipped   ? `despachado ${_bqFecha(hist.date_shipped)}` : '';
+        const totNum = orders.reduce((a, o) => a + (Number(o.total_amount) || 0), 0);
+        // Unidades FÍSICAS (un pack X5 cuenta 5), no la cantidad de órdenes
+        const unid = _filasPedido(orders).reduce((a, f) => a + f.u, 0)
+                  || orders.reduce((a, o) => a + (o.order_items || []).reduce((s, it) => s + (it.quantity || 0), 0), 0);
+        const ids = [v.key, ...orders.map(o => String(o.id)), ship ? String(ship.id) : ''];
+        const esMatch = !!(claves && claves.some(k => k && ids.includes(String(k))));
+        const items = _scanItemsHTML(orders, ship) || '';
+        return `<div class="sc-card bq-venta ${cta.css}${esMatch ? ' bq-match' : ''}">` +
+            `<div class="sc-top"><span class="sc-cuenta">${escHtml(cta.nombre)}</span>` +
+                `<span class="bq-fecha">🕒 ${escHtml(_bqFecha(v.fecha))}</span>` +
+                `<span class="sc-logistic">${_logisticoTxt(ship, cta)}</span></div>` +
+            `<div class="sc-body">` +
+                (esMatch ? `<div class="bq-match-lbl">🔎 Esta es la que buscaste</div>` : '') +
+                `<div class="bq-row"><span class="sc-order" data-copy="${escHtml(v.key)}" title="Tocá para copiar">#${escHtml(v.key)} <span class="sc-copy">copiar</span></span>` +
+                    (totNum ? `<span class="bq-total">$${totNum.toLocaleString('es-AR')}</span>` : '') + `</div>` +
+                `<div class="sc-estado ${est.cls}">${escHtml(est.txt)}` +
+                    (cuando ? ` <span class="bq-cuando">· ${escHtml(cuando)}</span>` : '') + `</div>` +
+                `<div class="bq-tags">${_bqClaimsHTML(v.claims)}` +
+                    (orders.length > 1 ? `<span class="bq-tag">📦 pack · ${orders.length} ventas</span>` : '') +
+                    `<span class="bq-tag">${unid} u</span>` +
+                    (ship ? `<span class="bq-tag mono" data-copy="${escHtml(String(ship.id))}" title="Nº de envío · tocá para copiar">🚚 ${escHtml(String(ship.id))}</span>` : '') +
+                `</div>` +
+                `<div class="sc-items">${items}</div>` +
+            `</div></div>`;
+    }
+
+    function _bqResumenHTML(nick, ventas) {
+        const n = ventas.length;
+        const cancelada = v => (v.ship && v.ship.status === 'cancelled') || v.orders.every(o => o.status === 'cancelled');
+        const entregadas = ventas.filter(v => v.ship && v.ship.status === 'delivered').length;
+        const canceladas = ventas.filter(cancelada).length;
+        const enCurso = Math.max(0, n - entregadas - canceladas);
+        const recl = ventas.reduce((a, v) => a + v.claims.length, 0);
+        const reclAb = ventas.reduce((a, v) => a + v.claims.filter(c => c.status === 'opened').length, 0);
+        const cuentas = [...new Set(ventas.map(v => v.cta.nombre))].join(' + ');
+        const receptor = (ventas.find(v => v.ship && v.ship.receiver_address && v.ship.receiver_address.receiver_name) || {}).ship;
+        const recibe = receptor ? receptor.receiver_address.receiver_name : '';
+        const primera = ventas[ventas.length - 1].fecha;
+        return `<div class="bq-head">` +
+            `<div class="bq-nick">👤 ${escHtml(nick)} <span class="bq-copy" data-copy="${escHtml(nick)}">copiar</span></div>` +
+            (recibe ? `<div class="bq-sub">Recibe: ${escHtml(recibe)}</div>` : '') +
+            `<div class="bq-sub">Primera compra ${escHtml(_bqFecha(primera))} · ${escHtml(cuentas)}</div>` +
+            `<div class="bq-stats">` +
+                `<div><b>${n}</b><span>compras</span></div>` +
+                `<div class="ok"><b>${entregadas}</b><span>entregadas</span></div>` +
+                `<div class="${enCurso ? 'warn' : ''}"><b>${enCurso}</b><span>en curso</span></div>` +
+                (canceladas ? `<div class="bad"><b>${canceladas}</b><span>canceladas</span></div>` : '') +
+                `<div class="${reclAb ? 'bad' : (recl ? 'warn' : 'ok')}"><b>${recl}</b><span>reclamos</span></div>` +
+            `</div></div>`;
+    }
+
+    async function _bqMostrarHistorial(buyerId, nick, claves, seq) {
+        const res = document.getElementById('buscarResult');
+        res.innerHTML = `<div class="bq-loading">Cargando compras de <b>${escHtml(nick || String(buyerId))}</b>…</div>`;
+        const porCuenta = await Promise.all(CUENTAS.map(cta => _bqHistorialCuenta(cta, buyerId).catch(() => [])));
+        if (seq !== _bqSeq) return;
+        const ventas = porCuenta.flat().sort((a, b) => String(b.fecha || '').localeCompare(String(a.fecha || '')));
+        if (!ventas.length) return _bqError(`No encontré compras de ${nick || buyerId}.`);
+        res.innerHTML = _bqResumenHTML(nick || String(buyerId), ventas) +
+            ventas.map(v => _bqVentaHTML(v, claves)).join('');
+        const m = res.querySelector('.bq-match');
+        if (m) m.scrollIntoView({ block: 'center', behavior: 'smooth' });
+    }
+
+    function _bqElegirComprador(lista, q) {
+        document.getElementById('buscarResult').innerHTML =
+            `<div class="bq-sub">Varios compradores coinciden con "${escHtml(q)}". Elegí uno:</div>` +
+            lista.map(c => `<button class="bq-buyer-btn" data-buyer="${c.id}" data-nick="${escHtml(c.nick)}">` +
+                `<b>👤 ${escHtml(c.nick)}</b><span>${c.n} compra${c.n !== 1 ? 's' : ''} · última ${escHtml(_bqFecha(c.ult))}</span></button>`).join('');
+    }
+
+    async function buscarComprador(raw) {
+        const seq = ++_bqSeq;
+        const txt = String(raw || '').trim();
+        const res = document.getElementById('buscarResult');
+        res.innerHTML = '<div class="bq-loading">Buscando…</div>';
+        // Número (orden / pack / envío / MEL… / JSON del QR) vs texto (usuario)
+        const esNumero = /^\{/.test(txt) || /^(MEL)?[\d\s.\-#]+$/i.test(txt);
+        try {
+            if (esNumero) {
+                const hit = await _bqResolverNumero(txt);
+                if (seq !== _bqSeq) return;
+                if (!hit) return _bqError('No encontré esa venta, pack o envío en Mikra ni Chaya.');
+                return _bqMostrarHistorial(hit.buyerId, hit.nick, hit.claves, seq);
+            }
+            const q = txt.replace(/^@/, '');
+            const compradores = await _bqBuscarNick(q);
+            if (seq !== _bqSeq) return;
+            if (!compradores.length) return _bqError(`No hay compras de "${q}" en Mikra ni Chaya.`);
+            const exacto = compradores.find(c => String(c.nick).toLowerCase() === q.toLowerCase());
+            if (exacto || compradores.length === 1) {
+                const c = exacto || compradores[0];
+                return _bqMostrarHistorial(c.id, c.nick, null, seq);
+            }
+            _bqElegirComprador(compradores, q);
+        } catch (e) {
+            if (seq === _bqSeq) _bqError('Error al buscar: ' + (e && e.message ? e.message : e));
+        }
+    }
+
+    function abrirBuscador() {
+        document.getElementById('buscarModal').classList.add('open');
+        // Focus SINCRÓNICO: en el celular el teclado solo se abre si el focus ocurre
+        // dentro del mismo toque (con setTimeout no aparecía).
+        const i = document.getElementById('buscarInput');
+        i.focus();
+        i.select();
+    }
+
+    function inicializarBuscador() {
+        const modal = document.getElementById('buscarModal');
+        if (!modal) return;
+        document.getElementById('buscarBtn').onclick = abrirBuscador;
+        document.getElementById('buscarClose').onclick = () => modal.classList.remove('open');
+        modal.onclick = e => { if (e.target === modal) modal.classList.remove('open'); };
+        const ir = () => { const v = document.getElementById('buscarInput').value.trim(); if (v) buscarComprador(v); };
+        document.getElementById('buscarGo').onclick = ir;
+        document.getElementById('buscarInput').addEventListener('keydown', e => { if (e.key === 'Enter') ir(); });
+        document.getElementById('buscarResult').addEventListener('click', e => {
+            const cp = e.target.closest('[data-copy]');
+            if (cp) {
+                if (navigator.clipboard) navigator.clipboard.writeText(cp.dataset.copy).catch(() => {});
+                const lbl = cp.querySelector('.sc-copy') || (cp.classList.contains('bq-copy') ? cp : null);
+                if (lbl) { const t = lbl.textContent; lbl.textContent = '✓ copiado'; setTimeout(() => lbl.textContent = t, 1200); }
+                return;
+            }
+            const by = e.target.closest('[data-buyer]');
+            if (by) _bqMostrarHistorial(Number(by.dataset.buyer), by.dataset.nick, null, ++_bqSeq);
+        });
     }
 
     window.abrirPruebaUPaq = function() {
@@ -5540,6 +5944,7 @@
     inicializarModalFlexDesglose();
     inicializarModalPrueba();
     inicializarScanner();
+    inicializarBuscador();
     wireCompareBtn();
     aplicarPrefs();
     resultadosCache = leerResultadosCache();
