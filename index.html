@@ -2,7 +2,7 @@
 <html lang="es">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no, viewport-fit=cover">
     <title>Despachos - Mikra + Chaya</title>
     <meta name="theme-color" content="#080810">
     <meta name="apple-mobile-web-app-capable" content="yes">
@@ -1094,6 +1094,10 @@
             .header-right { gap: 6px; }
             .header-time { font-size: 10px; }
         }
+        /* Notch / barra de estado en modo app (iPhone): que el header no quede debajo.
+           En Android y en la PC vale 0 → no cambia nada. */
+        .header { padding-top: calc(12px + env(safe-area-inset-top, 0px)); }
+        body { padding-bottom: calc(24px + env(safe-area-inset-bottom, 0px)); }
 
         /* ── MODAL DE AJUSTES ── */
         .modal-overlay {
@@ -1113,9 +1117,11 @@
             border: 1px solid var(--border-bright);
             border-bottom: none;
             border-radius: 18px 18px 0 0;
-            padding: 16px 16px 28px;
+            padding: 16px 16px calc(28px + env(safe-area-inset-bottom, 0px)); /* + barra de gestos */
             max-height: 85vh;
+            max-height: 85dvh; /* alto VISIBLE real en el celu (con la barra del navegador a la vista) */
             overflow-y: auto;
+            overscroll-behavior: contain; /* el scroll de la ventana no "pasa" a la página de atrás */
             animation: sheetUp 0.25s ease;
         }
         @keyframes sheetUp { from { transform: translateY(34px); opacity: 0; } to { transform: none; opacity: 1; } }
@@ -2183,16 +2189,27 @@
 
     async function fetchConRetry(url, opts = {}, retries = MAX_RETRIES) {
         for (let i = 0; i <= retries; i++) {
+            let resp;
             try {
-                const resp = await fetchConTimeout(url, opts);
-                if (resp.ok) return resp;
-                if (resp.status === 429) { await sleep(RETRY_DELAY_MS * (i + 1) * 2); continue; }
-                if (resp.status >= 400 && resp.status < 500) throw new Error(`HTTP ${resp.status}`);
-                if (i < retries) await sleep(RETRY_DELAY_MS * (i + 1));
+                resp = await fetchConTimeout(url, opts);
             } catch (e) {
+                // Red caída / timeout → reintentar con espera
                 if (i === retries) throw e;
                 await sleep(RETRY_DELAY_MS * (i + 1));
+                continue;
             }
+            if (resp.ok) return resp;
+            if (resp.status === 429 || resp.status === 408) { await sleep(RETRY_DELAY_MS * (i + 1) * 2); continue; }
+            // Otros 4xx (401 token vencido, 404 no existe…) NO se arreglan reintentando:
+            // cortar YA. Antes caían en el catch y se reintentaban 3 veces con esperas
+            // (~4 s por cada "no existe": el escáner tardaba ~9 s en decir "no la encontré").
+            // Quien llama ya renueva el token y reintenta una vez si hace falta.
+            if (resp.status >= 400 && resp.status < 500) {
+                const err = new Error(`HTTP ${resp.status}`);
+                err.status = resp.status;
+                throw err;
+            }
+            if (i < retries) await sleep(RETRY_DELAY_MS * (i + 1)); // 5xx → reintentar
         }
         throw new Error(`Falló tras ${retries} reintentos`);
     }
@@ -2209,6 +2226,9 @@
         const cached = tokenCache.get(cuenta.proxy);
         if (cached) return { access_token: cached.token, user_id: cached.userId };
         const data = await jsonConRetry(`${cuenta.proxy}/get-token`);
+        // No cachear una respuesta sin token (ej. error del worker): si no, quedaba
+        // guardado "undefined" y todas las llamadas fallaban hasta renovar.
+        if (!data || !data.access_token) throw new Error(`Sin token de ${cuenta.nombre}`);
         tokenCache.set(cuenta.proxy, data.access_token, data.user_id);
         return data;
     }
@@ -2670,7 +2690,9 @@
         // dashboard se queda mostrando datos de hace días sin enterarse nunca.
         await Promise.allSettled(CUENTAS.map(async c => {
             try {
-                const res = await fetch(`${AUTH_WORKER}/get-horario/${c.nombre.toLowerCase()}`);
+                // Con timeout: sin esto, si el worker no respondía (señal mala en el
+                // celu) el ⟳ quedaba girando para siempre, porque la carga lo espera.
+                const res = await fetchConTimeout(`${AUTH_WORKER}/get-horario/${c.nombre.toLowerCase()}`, {}, 8000);
                 if (!res.ok) return;
                 const data = await res.json();
                 if (data.horarios) {
@@ -2892,9 +2914,11 @@
     window._velHistLoading = false;
 
     // Cache persistente del semanal en localStorage (válido el mismo día).
-    const VELHIST_KEY = 'resumen_velhist_v1';
+    // v2: ahora cuenta paquetes (no órdenes) y sin el tope de 500 → no mezclar con lo cacheado viejo.
+    const VELHIST_KEY = 'resumen_velhist_v2';
     function _velHistDayStr() { const d = new Date(); return `${d.getFullYear()}-${d.getMonth() + 1}-${d.getDate()}`; }
     (function _restoreVelHist() {
+        try { localStorage.removeItem('resumen_velhist_v1'); } catch (e) {} // formato viejo
         try {
             const raw = JSON.parse(localStorage.getItem(VELHIST_KEY));
             if (raw && raw.day === _velHistDayStr() && Array.isArray(raw.flex) && Array.isArray(raw.colecta)) {
@@ -2909,80 +2933,103 @@
         window._velHistLoading = true;
         const prog = (p) => { try { onProgress && onProgress(Math.max(0, Math.min(100, Math.round(p)))); } catch (e) {} };
         const flex = [], colecta = [];
+        let incompleto = false; // si algo falla, NO se guarda en caché (si no, quedaba mal todo el día)
+        // Avance de cada cuenta (0..1) → una sola barra. Las dos cuentas van EN PARALELO.
+        const avance = CUENTAS.map(() => 0);
+        const avanzar = (ci, f) => { avance[ci] = Math.max(avance[ci], f); prog(2 + 98 * avance.reduce((a, b) => a + b, 0) / CUENTAS.length); };
+        // Corre `tarea` sobre cada elemento, de a `n` a la vez.
+        const enPool = async (items, n, tarea) => {
+            let sig = 0;
+            await Promise.all(Array.from({ length: Math.min(n, items.length) }, async () => {
+                while (sig < items.length) await tarea(items[sig++]);
+            }));
+        };
+        const desde = new Date(); desde.setDate(desde.getDate() - 8);
+        const desdeISO = encodeURIComponent(desde.toISOString().split('.')[0] + '.000-00:00');
+        const hasta = new Date(); hasta.setDate(hasta.getDate() + 1);
+        const hastaISO = encodeURIComponent(hasta.toISOString().split('.')[0] + '.000-00:00');
+        const dateFilter = `&order.date_created.from=${desdeISO}&order.date_created.to=${hastaISO}&order.status=paid`;
+        // Tope por estado: en 8 días hay ~800 entregadas por cuenta. Antes el tope era 500
+        // → los días más viejos de la semana salían vacíos o recortados.
+        const MAX_POR_ESTADO = 3000;
         prog(2);
-        try {
-            for (let ci = 0; ci < CUENTAS.length; ci++) {
-                const cuenta = CUENTAS[ci];
-                const base = ci * 50;               // cada cuenta = 50% de la barra
+        await Promise.all(CUENTAS.map(async (cuenta, ci) => {
+            try {
                 let { access_token, user_id } = await getToken(cuenta);
                 const makeOpts = () => ({ headers: { Authorization: `Bearer ${access_token}` } });
-                const desde = new Date(); desde.setDate(desde.getDate() - 8);
-                const desdeISO = encodeURIComponent(desde.toISOString().split('.')[0] + '.000-00:00');
-                const hasta = new Date(); hasta.setDate(hasta.getDate() + 1);
-                const hastaISO = encodeURIComponent(hasta.toISOString().split('.')[0] + '.000-00:00');
-                const dateFilter = `&order.date_created.from=${desdeISO}&order.date_created.to=${hastaISO}&order.status=paid`;
-
-                // 1) Traer órdenes (sid + fecha) de despachados/entregados. (0–15% de la cuenta)
-                const rows = [];
-                let paginas = 0;
-                for (const shStatus of ['shipped', 'delivered', 'ready_to_ship']) {
-                    let offset = 0;
-                    while (true) {
-                        const url = `${cuenta.proxy}/api/orders/search?seller=${user_id}&offset=${offset}&limit=50&sort=date_desc${dateFilter}&shipping.status=${shStatus}&_ts=${Date.now()}`;
-                        let data;
-                        try { data = await jsonConRetry(url, makeOpts()); } catch { break; }
-                        const orders = data.results || [];
-                        if (!orders.length) break;
-                        for (const o of orders) {
-                            const sid = o.shipping?.id;
-                            if (sid && o.date_created) rows.push({ sid, date: o.date_created });
-                        }
-                        paginas++;
-                        prog(base + Math.min(15, paginas * 2));
-                        if (orders.length < 50) break;
-                        offset += 50;
-                        if (offset >= 500) break;
-                    }
-                }
-
-                // 2) Clasificar flex/colecta: usar cache; traer envíos desconocidos. (15–50%)
-                const desconocidos = [...new Set(rows.map(r => r.sid).filter(sid => ltGet(sid) === undefined))];
-                const CHUNK = 40;
-                const lotes = [];
-                for (let i = 0; i < desconocidos.length; i += CHUNK) lotes.push(desconocidos.slice(i, i + CHUNK));
-                let hechos = 0;
-                async function traerLote(chunk) {
-                    const idsParam = chunk.join(',');
-                    let arr;
-                    try { arr = await jsonConRetry(`${cuenta.proxy}/api/shipments?ids=${idsParam}&_ts=${Date.now()}`, makeOpts()); }
+                // GET con renovación de token (una vez) si falla
+                const get = async url => {
+                    try { return await jsonConRetry(url(), makeOpts()); }
                     catch (e) {
                         invalidarToken(cuenta.proxy);
                         ({ access_token, user_id } = await getToken(cuenta));
-                        try { arr = await jsonConRetry(`${cuenta.proxy}/api/shipments?ids=${idsParam}&_ts=${Date.now()}`, makeOpts()); }
-                        catch (e2) { arr = []; }
+                        return await jsonConRetry(url(), makeOpts());
                     }
+                };
+
+                // 1) Órdenes de despachados/entregados/listos. Se cuentan PAQUETES (envíos), no
+                //    órdenes: un pack de 3 órdenes es 1 paquete — igual que hoy/ayer, que salen
+                //    de la carga principal (antes los días viejos salían ~35% inflados).
+                const porEnvio = new Map(); // sid → fecha más temprana
+                const sumar = data => {
+                    for (const o of (data?.results || [])) {
+                        const sid = o.shipping?.id;
+                        if (!sid || !o.date_created) continue;
+                        const prev = porEnvio.get(sid);
+                        if (!prev || o.date_created < prev) porEnvio.set(sid, o.date_created);
+                    }
+                };
+                const pagina = (st, off) => () => `${cuenta.proxy}/api/orders/search?seller=${user_id}&offset=${off}&limit=50&sort=date_desc${dateFilter}&shipping.status=${st}&_ts=${Date.now()}`;
+                // 1ª página de cada estado (trae el total) → el resto de las páginas en paralelo
+                const resto = [];
+                await Promise.all(['shipped', 'delivered', 'ready_to_ship'].map(async st => {
+                    let d0;
+                    try { d0 = await get(pagina(st, 0)); } catch (e) { incompleto = true; return; }
+                    sumar(d0);
+                    const total = Math.min(d0?.paging?.total || 0, MAX_POR_ESTADO);
+                    for (let off = 50; off < total; off += 50) resto.push(pagina(st, off));
+                }));
+                avanzar(ci, 0.05);
+                let hechas = 0;
+                await enPool(resto, 4, async u => {
+                    try { sumar(await get(u)); } catch (e) { incompleto = true; }
+                    avanzar(ci, 0.05 + 0.3 * (++hechas / resto.length));
+                });
+                avanzar(ci, 0.35);
+
+                // 2) Clasificar flex/colecta: usar cache; traer envíos desconocidos.
+                const desconocidos = [...porEnvio.keys()].filter(sid => ltGet(sid) === undefined);
+                const lotes = [];
+                for (let i = 0; i < desconocidos.length; i += 40) lotes.push(desconocidos.slice(i, i + 40));
+                let hechos = 0;
+                await enPool(lotes, 4, async chunk => {
+                    let arr = [];
+                    try { arr = await get(() => `${cuenta.proxy}/api/shipments?ids=${chunk.join(',')}&_ts=${Date.now()}`); }
+                    catch (e) { incompleto = true; }
                     if (Array.isArray(arr)) for (const s of arr) if (s?.id) ltSet(s.id, s.logistic_type);
-                    hechos++;
-                    prog(base + 15 + 35 * (hechos / (lotes.length || 1)));
-                }
-                let sig = 0;
-                async function pool() { while (sig < lotes.length) await traerLote(lotes[sig++]); }
-                await Promise.all(Array.from({ length: Math.min(4, lotes.length || 1) }, pool));
+                    avanzar(ci, 0.35 + 0.65 * (++hechos / lotes.length));
+                });
                 ltFlush();
 
                 // 3) Repartir por tipo (los que sigan sin tipo → colecta por defecto).
-                for (const r of rows) {
-                    if (ltGet(r.sid) === 'self_service') flex.push(r.date);
-                    else colecta.push(r.date);
-                }
-                prog((ci + 1) * 50);
-            }
-        } catch (e) { console.warn('velFetchHist error', e); }
+                porEnvio.forEach((date, sid) => {
+                    if (ltGet(sid) === 'self_service') flex.push(date);
+                    else colecta.push(date);
+                });
+                avanzar(ci, 1);
+            } catch (e) { console.warn('velFetchHist error', cuenta.nombre, e); incompleto = true; }
+        }));
         prog(100);
         window._velHistLoading = false;
-        window._velHistCache = { flex, colecta };
+        const hist = { flex, colecta };
+        if (incompleto) {
+            // Se muestra lo que llegó, pero sin cachear: al volver a abrir "Semana" reintenta.
+            console.warn('Semanal incompleto (falló alguna consulta) → no se guarda en caché');
+            return hist;
+        }
+        window._velHistCache = hist;
         try { localStorage.setItem(VELHIST_KEY, JSON.stringify({ day: _velHistDayStr(), flex, colecta })); } catch (e) {}
-        return window._velHistCache;
+        return hist;
     }
 
     function _velRender24h() {
@@ -3147,7 +3194,7 @@
             `<div class="vel-chart-avg">Promedio: <b>${avgPerDay}</b>/día · Total 7 días: <b>${totalWeek}</b></div>`;
     }
 
-    function _velRenderChart(mode) {
+    function _velRenderChart(mode, histDirecto = null) {
         const el = document.getElementById('velChartContent');
         const tabs = `<div class="vel-chart-tabs">` +
             `<button class="${mode === '24h' ? 'active' : ''}" onclick="_velSetMode('24h')">24h</button>` +
@@ -3165,7 +3212,7 @@
             return;
         }
         // Semana: needs lazy fetch (cacheado en localStorage el mismo día)
-        const hist = window._velHistCache;
+        const hist = histDirecto || window._velHistCache;
         if (hist) {
             el.innerHTML = tabs + `<div class="vel-chart">${_velRenderSemana(hist)}${legend}</div>`;
         } else {
@@ -3179,8 +3226,9 @@
                 const t = document.getElementById('velProgPct');
                 if (f) f.style.width = pct + '%';
                 if (t) t.textContent = pct + '%';
-            }).then(() => {
-                if (window._velChartMode === 'semana') _velRenderChart('semana');
+            }).then(h => {
+                // Se dibuja con lo que llegó (aunque esté incompleto y no se haya cacheado).
+                if (h && window._velChartMode === 'semana') _velRenderChart('semana', h);
             });
         }
     }
@@ -3224,7 +3272,9 @@
         const now = new Date();
         const { corte, dias } = preCorte || proximoCorteLaboral(corteH, corteM);
         const remainHours = (corte - now) / 3600000;
-        const base = { passed: false, corte, dias, remainHours, esMañana: dias >= 1 };
+        // currentPending: lo usa la suma de colecta cuando una cuenta no tiene velocidad
+        // (antes no existía → esa cuenta sumaba 0 en vez de sus pendientes).
+        const base = { passed: false, corte, dias, remainHours, esMañana: dias >= 1, currentPending };
         if (!vel || remainHours <= 0) return { ...base, total: null, more: null };
         const more = Math.round(vel.perHour * remainHours);
         return { ...base, more, total: currentPending + more };
@@ -3545,6 +3595,10 @@
 
         setStatus('loading');
 
+        // try/finally: si algo explota al procesar o dibujar, el ⟳ (y el tirar-para-abajo)
+        // NO deben quedar bloqueados — antes había que cerrar la app para volver a cargar.
+        let hayError = false;
+        try {
         const [settled] = await Promise.all([
             Promise.allSettled(activas.map(c => cargarCuenta(c, liviano, _catalogoPromise))),
             cargarHorarios(),
@@ -3559,7 +3613,7 @@
             console.error(`Error ${activas[i].nombre}:`, r.reason);
             return { cuenta: activas[i], ready: empty(), printed: empty(), pendEsc: empty(), buffered: 0, bufferedUni: 0, flexDatesAll: [], colectaDatesAll: [], flexDatesHist: [], colectaDatesHist: [], escanearDetalle: [], readyFlexDetalle: [], readyColectaDetalle: [], printedFlexDetalle: [], printedColectaDetalle: [], error: true };
         });
-        const hayError = resultados.some(r => r.error);
+        hayError = resultados.some(r => r.error);
 
         // Guardar como "anterior" solo si los datos realmente cambiaron.
         // Así el ojito siempre muestra el último estado distinto, no el refresh anterior.
@@ -3577,12 +3631,17 @@
         renderResultados(resultados, false);
         checkStaleness();
         checkHorarioCambios();
-        finProgreso();
         actualizarCompareBtn();
-
-        btn.disabled = false;
-        document.getElementById('reloadIcon').style.animation = '';
-        cargando = false;
+        } catch (e) {
+            console.error('Error en la carga:', e);
+            hayError = true;
+        } finally {
+            document.body.classList.remove('actualizando');
+            finProgreso();
+            btn.disabled = false;
+            document.getElementById('reloadIcon').style.animation = '';
+            cargando = false;
+        }
         actualizarFrescura();
         if (hayError) setStatus('error');
     }
@@ -3590,21 +3649,6 @@
     // ══════════════════════════════════════════════
     //  RENDER HELPERS
     // ══════════════════════════════════════════════
-    function getHorarioHoy(cuentaNombre) {
-        const today = new Date().getDay();
-        const horarios = HORARIOS[cuentaNombre];
-        if (horarios) {
-            const h = horarios[today];
-            if (h && h.cutoff) return h;
-        }
-        const proxima = HORARIOS_PROXIMA[cuentaNombre];
-        if (proxima) {
-            const hp = proxima[today];
-            if (hp && hp.cutoff) return hp;
-        }
-        return null;
-    }
-
     // ── VISTA SEMANAL UNIFICADA (para el chip + desglose al tocar) ──
     // Decide qué fuente usar:
     //  • Si hoy (Lun-Sáb) tiene horario en "semana" (la semana en curso, viva) → esa.
@@ -3920,12 +3964,14 @@
     // Filtro de día: ciclo 'todos' → 'hoy' → 'manana'. SIEMPRE arranca en 'todos' al cargar/refrescar.
     window._diaFiltroModo = 'todos';
 
-    // Suma n días hábiles (salta sáb/dom) a una fecha "YYYY-MM-DD", sin líos de zona horaria.
+    // Suma n días hábiles (salta sáb/dom Y feriados AR) a una fecha "YYYY-MM-DD", sin líos
+    // de zona horaria. (Antes saltaba solo el finde: un paquete que perdía el corte del
+    // viernes caía en el lunes aunque fuera feriado.)
     function _sumarDiaHabil(diaStr, n) {
         const [y, m, d] = diaStr.split('-').map(Number);
         const dt = new Date(y, m - 1, d);
         dt.setDate(dt.getDate() + n);
-        while (dt.getDay() === 0 || dt.getDay() === 6) dt.setDate(dt.getDate() + 1);
+        for (let i = 0; i < 10 && !esDiaLaboral(dt); i++) dt.setDate(dt.getDate() + 1);
         const p = x => String(x).padStart(2, '0');
         return `${dt.getFullYear()}-${p(dt.getMonth() + 1)}-${p(dt.getDate())}`;
     }
@@ -3979,28 +4025,6 @@
 
     function _fmtDiaAR(d) { const p = n => String(n).padStart(2, '0'); return `${d.getFullYear()}-${p(d.getMonth()+1)}-${p(d.getDate())}`; }
 
-    // Día objetivo: hoy (o día hábil siguiente si son ≥17hs), avanzando al próximo
-    // día hábil que tenga paquetes según los datos cargados.
-    function _diaObjetivoConDatos(raw) {
-        const dias = new Set();
-        (raw || []).forEach(r => {
-            // Solo FLEX define el día de despacho: flex es same-day, así que su fecha de
-            // entrega ES el día de despacho. La colecta se entrega DÍAS después del
-            // despacho, por lo que su fecha de entrega no sirve para elegir el día.
-            (r.readyFlexDetalle || []).forEach(x => { if (x.entrega) dias.add(x.entrega); });
-        });
-        const arNow = new Date(new Date().toLocaleString('en-US', { timeZone: 'America/Argentina/Buenos_Aires' }));
-        const t = new Date(arNow); t.setHours(0, 0, 0, 0);
-        if (arNow.getHours() >= 17) t.setDate(t.getDate() + 1); // después de las 17hs → día siguiente
-        for (let i = 0; i < 14; i++) {
-            while (t.getDay() === 0 || t.getDay() === 6) t.setDate(t.getDate() + 1); // saltar sáb/dom
-            const s = _fmtDiaAR(t);
-            if (dias.has(s)) return s;      // día hábil con paquetes → listo
-            t.setDate(t.getDate() + 1);     // 0 paquetes → probar el próximo
-        }
-        return _fmtDiaAR(t); // fallback (nada en 14 días): devuelve el calculado
-    }
-
     function _recuentaPorDia(detFlex, detCol, dia) {
         // Cada paquete (flex Y colecta) se atribuye a SU fecha de entrega (entrega).
         const f = (detFlex || []).filter(x => x.entrega === dia);
@@ -4024,17 +4048,6 @@
             printedColectaDetalle:(r.printedColectaDetalle || []).filter(x => x.entrega === dia),
             escanearDetalle:      (r.escanearDetalle || []).filter(x => x.entrega === dia),
         }));
-    }
-
-    function _etiquetaDia(dia) {
-        if (!dia) return '';
-        const [y, m, d] = dia.split('-').map(Number);
-        const dt = new Date(y, m - 1, d);
-        const hoyAR = new Date(new Date().toLocaleString('en-US', { timeZone: 'America/Argentina/Buenos_Aires' })); hoyAR.setHours(0,0,0,0);
-        const diffD = Math.round((dt - hoyAR) / 86400000);
-        const dName = ['Dom','Lun','Mar','Mié','Jue','Vie','Sáb'][dt.getDay()];
-        const rel = diffD === 0 ? 'hoy' : diffD === 1 ? 'mañana' : `en ${diffD}d`;
-        return `${dName} ${d}/${m} · ${rel}`;
     }
 
     function toggleDiaFiltro() {
@@ -4715,13 +4728,19 @@
     // ══════════════════════════════════════════════
     // Auto-refresh eliminado — usar el botón ⟳ manualmente
 
-    let touchStartY = 0;
+    // Tirar para abajo (arriba de todo) = ⟳. Solo en la pantalla principal: con una
+    // ventana abierta (desglose, lupa, ajustes…) la página de fondo siempre está en
+    // scrollY 0, así que subir la lista de la ventana con el dedo disparaba un ⟳ completo.
+    let touchStartY = null;
+    const _hayModalAbierto = () => !!document.querySelector('.modal-overlay.open');
     document.addEventListener('touchstart', e => {
-        if (window.scrollY === 0) touchStartY = e.touches[0].clientY;
+        touchStartY = (window.scrollY === 0 && !_hayModalAbierto()) ? e.touches[0].clientY : null;
     }, { passive: true });
     document.addEventListener('touchend', e => {
+        if (touchStartY === null) return;
         const diff = e.changedTouches[0].clientY - touchStartY;
-        if (diff > 100 && window.scrollY === 0 && !document.getElementById('reloadBtn').disabled) {
+        touchStartY = null;
+        if (diff > 100 && window.scrollY === 0 && !_hayModalAbierto() && !document.getElementById('reloadBtn').disabled) {
             cargarTodo(false);
         }
     }, { passive: true });
@@ -4800,7 +4819,7 @@
             html += `<div class="esc-grupo-title ${r.cuenta.css}">${r.cuenta.nombre} · ${detalle.length}</div>`;
             ordenado.forEach(it => {
                 const href = it.orderId
-                    ? `https://www.mercadolibre.com.ar/ventas/${it.orderId}/detalle`
+                    ? `https://vendedores.mercadolibre.com.ar/ventas/${it.orderId}/detalle` // dominio nuevo (www redirige)
                     : null;
                 const productos = ordenarProductos(it.productos, catalog);
                 const productosHtml = productos.length
@@ -4818,7 +4837,7 @@
                 html += `
                 <div class="esc-item">
                     <div class="esc-row" onclick="toggleEscRow(this)">
-                        <span class="esc-zona">${it.zona || 'Sin zona'} <span class="esc-chevron">▾</span></span>
+                        <span class="esc-zona">${escHtml(it.zona || 'Sin zona')} <span class="esc-chevron">▾</span></span>
                         <span class="esc-uni">${it.qty} u</span>
                         ${href
                             ? `<a class="esc-orden" href="${href}" target="_blank" rel="noopener" onclick="event.stopPropagation()">#${it.orderId}</a>`
@@ -5431,6 +5450,10 @@
     // Historial del comprador en UNA cuenta: órdenes → ventas (pack) + envío + reclamos
     async function _bqHistorialCuenta(cta, buyerId) {
         const { user_id } = await getToken(cta);
+        // Reclamos / cancelaciones / devoluciones de este comprador contra esta cuenta (1 request).
+        // Solo dependen del comprador → se piden YA, en paralelo con las compras.
+        const claimsP = _bqGet(cta, `/api/post-purchase/v1/claims/search?player_role=complainant&player_user_id=${buyerId}&limit=50`)
+            .then(c => (c && c.data) || []).catch(() => []);
         const orders = [];
         for (let off = 0; off < 200; off += 50) {
             const r = await _bqGet(cta, `/api/orders/search?seller=${user_id}&buyer=${buyerId}&sort=date_desc&limit=50&offset=${off}`);
@@ -5440,20 +5463,15 @@
         }
         if (!orders.length) return [];
 
-        // Envíos en lotes de 40 (1 request por lote)
+        // Envíos en lotes de 40 (1 request por lote), todos los lotes en paralelo
         const sids = [...new Set(orders.map(o => o.shipping && o.shipping.id).filter(Boolean).map(String))];
         const ships = new Map();
-        for (let i = 0; i < sids.length; i += 40) {
-            const arr = await _bqGet(cta, `/api/shipments?ids=${sids.slice(i, i + 40).join(',')}`).catch(() => null);
-            (Array.isArray(arr) ? arr : []).forEach(s => { if (s && s.id) ships.set(String(s.id), s); });
-        }
+        const lotes = [];
+        for (let i = 0; i < sids.length; i += 40) lotes.push(sids.slice(i, i + 40));
+        const arrs = await Promise.all(lotes.map(l => _bqGet(cta, `/api/shipments?ids=${l.join(',')}`).catch(() => null)));
+        arrs.forEach(arr => (Array.isArray(arr) ? arr : []).forEach(s => { if (s && s.id) ships.set(String(s.id), s); }));
 
-        // Reclamos / cancelaciones / devoluciones de este comprador contra esta cuenta (1 request)
-        let claims = [];
-        try {
-            const c = await _bqGet(cta, `/api/post-purchase/v1/claims/search?player_role=complainant&player_user_id=${buyerId}&limit=50`);
-            claims = (c && c.data) || [];
-        } catch (e) {}
+        const claims = await claimsP;
 
         // Una VENTA = un pack (varias órdenes) o una orden suelta
         const ventas = new Map();
@@ -5711,12 +5729,6 @@
         });
     }
 
-    function _normCatTitle(s) {
-        return (s || '').toLowerCase()
-            .normalize('NFD').replace(/[̀-ͯ]/g, '') // saca acentos
-            .replace(/[^a-z0-9]/g, ' ').replace(/\s+/g, ' ').trim();
-    }
-
     const RESUMEN_SKU_KEY   = 'resumen_sku_catalog_v1';
     const RESUMEN_PACKS_KEY = 'resumen_packmap_v1';
     const RESUMEN_IMG_KEY   = 'resumen_imgmap_v1';
@@ -5725,49 +5737,114 @@
     let _packMapMem = null; // combo SKU → [componentes]  (?mode=packs)
     let _imgMapMem  = null; // SKU → url de imagen        (?mode=images)
 
-    function _fresco(key) {
-        try { const c = sessionStorage.getItem(key); return c && (Date.now() - JSON.parse(c).fetchedAt < RESUMEN_SKU_TTL); } catch(e) { return false; }
+    const CAT_KEYS = [RESUMEN_SKU_KEY, RESUMEN_PACKS_KEY, RESUMEN_IMG_KEY];
+    let _catRaw = null;       // JSON del catálogo de SKUs en memoria (evita releer 1,5 MB)
+    let _catDescarga = null;  // descarga en curso (no lanzar dos a la vez)
+
+    // ── IndexedDB mínimo: el catálogo (~2,5 MB) sobrevive al cerrar la app.
+    // sessionStorage se BORRA al cerrar la app del celu → antes cada apertura bajaba
+    // ~4 MB de nuevo y la carga los esperaba. localStorage no alcanza (5 MB compartidos
+    // con las otras apps de github.io). Si IndexedDB falla, todo sigue como antes.
+    let _idbP = null;
+    function _idb() {
+        if (!_idbP) _idbP = new Promise((res, rej) => {
+            const r = indexedDB.open('resumen_catalogo', 1);
+            r.onupgradeneeded = () => r.result.createObjectStore('kv');
+            r.onsuccess = () => res(r.result);
+            r.onerror = () => rej(r.error);
+        }).catch(e => { _idbP = null; throw e; });
+        return _idbP;
+    }
+    async function _idbGet(k) {
+        try {
+            const db = await _idb();
+            return await new Promise(res => {
+                const q = db.transaction('kv').objectStore('kv').get(k);
+                q.onsuccess = () => res(q.result);
+                q.onerror = () => res(undefined);
+            });
+        } catch (e) { return undefined; }
+    }
+    async function _idbSet(k, v) {
+        try { (await _idb()).transaction('kv', 'readwrite').objectStore('kv').put(v, k); } catch (e) {}
+    }
+
+    // Edad de un caché sin parsear el JSON entero (fetchedAt va al final del string).
+    function _edadCat(key) {
+        try {
+            const c = sessionStorage.getItem(key);
+            if (!c) return Infinity;
+            const m = c.slice(-40).match(/"fetchedAt":(\d+)\}$/);
+            return Date.now() - (m ? Number(m[1]) : JSON.parse(c).fetchedAt);
+        } catch (e) { return Infinity; }
+    }
+
+    // Sesión nueva → restaurar al toque desde IndexedDB lo que falte en sessionStorage.
+    async function _restaurarCatalogoIDB() {
+        const faltan = CAT_KEYS.filter(k => !sessionStorage.getItem(k));
+        if (!faltan.length) return;
+        const vals = await Promise.all(faltan.map(_idbGet));
+        faltan.forEach((k, i) => {
+            const s = vals[i];
+            // Si mientras tanto llegó la descarga (más nueva), no pisarla con lo viejo.
+            if (typeof s !== 'string' || sessionStorage.getItem(k)) return;
+            try { sessionStorage.setItem(k, s); } catch (e) {}
+            try {
+                if (k === RESUMEN_SKU_KEY)   _catRaw = s;
+                if (k === RESUMEN_PACKS_KEY) _packMapMem = JSON.parse(s).packs;
+                if (k === RESUMEN_IMG_KEY)   _imgMapMem  = JSON.parse(s).images;
+            } catch (e) {}
+        });
+    }
+
+    function _descargarCatalogo(keys) {
+        if (_catDescarga) return _catDescarga;
+        const quiere = k => keys.includes(k);
+        // 25 s: son ~4 MB; con timeout para que una red trabada no cuelgue la carga.
+        const get = u => fetchConTimeout(u, { cache: 'no-store' }, 25000)
+            .then(r => r.ok ? r.json() : null).catch(() => null);
+        const guardar = (k, obj) => {
+            const s = JSON.stringify(obj);
+            try { sessionStorage.setItem(k, s); } catch (e) {}
+            _idbSet(k, s);
+            return s;
+        };
+        _catDescarga = (async () => {
+            const [dp, dpk, di] = await Promise.all([
+                quiere(RESUMEN_SKU_KEY)   ? get(CF_STOCK_URL) : null,
+                quiere(RESUMEN_PACKS_KEY) ? get(CF_STOCK_URL + '/?mode=packs') : null,
+                quiere(RESUMEN_IMG_KEY)   ? get(CF_STOCK_URL + '/?mode=images') : null,
+            ]);
+            if (di && di.success && di.images) {
+                _imgMapMem = di.images;
+                guardar(RESUMEN_IMG_KEY, { images: di.images, fetchedAt: Date.now() });
+            }
+            if (dp && dp.success && dp.products && dp.products.length) {
+                // Solo los campos necesarios para SKU lookup (reduce ~70% el tamaño)
+                const slim = dp.products.map(p => ({
+                    codigo: p.codigo, titulo: p.titulo || p.articulo || '',
+                    color: p.color || '', talle: p.talle || ''
+                }));
+                _catRaw = guardar(RESUMEN_SKU_KEY, { products: slim, fetchedAt: Date.now() });
+            }
+            if (dpk && dpk.success && dpk.packs) {
+                _packMapMem = dpk.packs;
+                guardar(RESUMEN_PACKS_KEY, { packs: dpk.packs, fetchedAt: Date.now() });
+            }
+        })().catch(() => {}).finally(() => { _catDescarga = null; });
+        return _catDescarga;
     }
 
     async function sincronizarCatalogoBg() {
-        const needProds = !_fresco(RESUMEN_SKU_KEY);
-        const needPacks = !_fresco(RESUMEN_PACKS_KEY);
-        const needImgs  = !_fresco(RESUMEN_IMG_KEY);
-        if (needPacks === false && !_packMapMem) { try { _packMapMem = JSON.parse(sessionStorage.getItem(RESUMEN_PACKS_KEY)).packs; } catch(e) {} }
-        if (needImgs === false && !_imgMapMem)  { try { _imgMapMem  = JSON.parse(sessionStorage.getItem(RESUMEN_IMG_KEY)).images; } catch(e) {} }
-        if (!needProds && !needPacks && !needImgs) return;
-        try {
-            const [rp, rpk, rim] = await Promise.all([
-                needProds ? fetch(CF_STOCK_URL, { cache: 'no-store' }) : Promise.resolve(null),
-                needPacks ? fetch(CF_STOCK_URL + '/?mode=packs', { cache: 'no-store' }) : Promise.resolve(null),
-                needImgs  ? fetch(CF_STOCK_URL + '/?mode=images', { cache: 'no-store' }) : Promise.resolve(null),
-            ]);
-            if (rim) {
-                const di = await rim.json();
-                if (di.success && di.images) {
-                    _imgMapMem = di.images;
-                    try { sessionStorage.setItem(RESUMEN_IMG_KEY, JSON.stringify({ images: di.images, fetchedAt: Date.now() })); } catch(e) {}
-                }
-            }
-            if (rp) {
-                const data = await rp.json();
-                if (data.success && data.products && data.products.length) {
-                    // Solo los campos necesarios para SKU lookup (reduce ~70% el tamaño)
-                    const slim = data.products.map(p => ({
-                        codigo: p.codigo, titulo: p.titulo || p.articulo || '',
-                        color: p.color || '', talle: p.talle || ''
-                    }));
-                    try { sessionStorage.setItem(RESUMEN_SKU_KEY, JSON.stringify({ products: slim, fetchedAt: Date.now() })); } catch(e) {}
-                }
-            }
-            if (rpk) {
-                const dp = await rpk.json();
-                if (dp.success && dp.packs) {
-                    _packMapMem = dp.packs;
-                    try { sessionStorage.setItem(RESUMEN_PACKS_KEY, JSON.stringify({ packs: dp.packs, fetchedAt: Date.now() })); } catch(e) {}
-                }
-            }
-        } catch(e) {}
+        // 1) Lo guardado de sesiones anteriores (máx. 1,5 s; si IndexedDB tarda, sigue sin él)
+        await Promise.race([_restaurarCatalogoIDB().catch(() => {}), sleep(1500)]);
+        // 2) Lo vencido (>12 h) o faltante → red.
+        const vencidas = CAT_KEYS.filter(k => _edadCat(k) >= RESUMEN_SKU_TTL);
+        if (!vencidas.length) return;
+        const descarga = _descargarCatalogo(vencidas);
+        // Si ya hay catálogo (aunque viejo) se usa YA y se renueva de fondo;
+        // solo se espera la descarga si falta del todo.
+        if (CAT_KEYS.some(k => !sessionStorage.getItem(k))) await descarga;
     }
 
     function _getPackMap() {
@@ -5782,34 +5859,33 @@
         return null;
     }
 
+    // Catálogo armado (SKU → nombre/color/talle) + de qué JSON salió. Son ~17 mil SKU:
+    // armarlo cuesta ~20 ms (más en el celu) y se pedía en cada desglose y 2 veces por
+    // compra en la lupa → ahora se arma UNA vez y se reusa mientras el JSON no cambie.
+    let _catMem = null, _catMemSrc = null;
     function buildStockCatalog() {
         try {
             // Caché propio de resumen.html (incluye packs/combos, se renueva cada 12h)
             // Fallback a mikra_products si todavía no se sincronizó
+            const own = _catRaw || (_catRaw = sessionStorage.getItem(RESUMEN_SKU_KEY));
+            const src = own || localStorage.getItem('mikra_products');
+            if (!src) return null;
+            if (src === _catMemSrc) return _catMem;
             let prods = null;
-            const own = sessionStorage.getItem(RESUMEN_SKU_KEY);
-            if (own) { try { prods = JSON.parse(own).products; } catch(e) {} }
-            if (!prods) {
-                const fallback = localStorage.getItem('mikra_products');
-                if (!fallback) return null;
-                prods = JSON.parse(fallback);
-            }
-            if (!prods) return null;
-            const bySku   = {}; // codigo → {titulo, color, talle}
-            const byTitle = {}; // normTitle → titulo (para fallback sin SKU)
-
+            try { prods = own ? JSON.parse(own).products : JSON.parse(src); } catch (e) {}
+            if (!prods && own) { const fb = localStorage.getItem('mikra_products'); if (fb) prods = JSON.parse(fb); }
+            if (!Array.isArray(prods)) return null;
+            const bySku = {}; // codigo → {titulo, color, talle}
             prods.forEach(p => {
-                const e = {
+                if (p.codigo) bySku[String(p.codigo)] = {
                     titulo: p.titulo || p.articulo || '',
                     color:  p.color  || '',
                     talle:  p.talle  || ''
                 };
-                if (p.codigo) bySku[String(p.codigo)] = e;
-                const norm = _normCatTitle(e.titulo);
-                if (norm && !byTitle[norm]) byTitle[norm] = e.titulo;
             });
-
-            return { bySku, byTitle };
+            _catMem = { bySku };
+            _catMemSrc = src;
+            return _catMem;
         } catch (e) { return null; }
     }
 
@@ -5877,9 +5953,6 @@
         return [{ sku, nombre: e.titulo || prod?.titulo || '—', color: e.color || '', talle: e.talle || '', cantidad: cant, mult, tipo: mult > 1 ? 'multipack' : 'normal' }];
     }
 
-    // Expande la lista de productos para el DESGLOSE: los conjuntos (2+ componentes) se
-    // reemplazan por un pseudo-producto por componente (con el SKU del componente, para que
-    // resolverProducto muestre su nombre/color/talle). Multipacks y normales quedan igual.
     // Orden de talles (igual que el userscript PRINCIPAL): XS<S<M<L<XL<2XL<3XL; numéricos por su número.
     function _talleOrder(t) {
         const s = (t || '').toUpperCase().trim();
@@ -5904,21 +5977,6 @@
             const ta = _talleOrder(a.talle), tb = _talleOrder(b.talle); if (ta !== tb) return ta - tb;
             return (a.color || '').localeCompare(b.color || '', 'es');
         });
-    }
-
-    function _expandirParaDesglose(productos) {
-        const packMap = _getPackMap();
-        const out = [];
-        (productos || []).forEach(p => {
-            const sku = p?.sku ? String(p.sku) : '';
-            const comps = (sku && packMap) ? packMap[sku] : null;
-            if (comps && comps.length > 1) {
-                comps.forEach(cs => out.push({ sku: String(cs), titulo: '', cantidad: p.cantidad || 1 }));
-            } else {
-                out.push(p);
-            }
-        });
-        return out;
     }
 
     // Resuelve nombre/color/talle/sku de un producto contra el catálogo (SKU).
@@ -5962,31 +6020,6 @@
                 || ra.color.localeCompare(rb.color, 'es', opts)
                 || _cmpTalle(ra.talle, rb.talle);
         });
-    }
-
-    // Busca el nombre corto del catálogo por solapamiento de palabras con el título de ML.
-    // Devuelve el titulo del catálogo si ≥75 % de sus palabras están en el título de ML.
-    function _titleFallback(mlTitle, byTitle) {
-        const mlNorm  = _normCatTitle(mlTitle);
-        const mlWords = new Set(mlNorm.split(' ').filter(w => w.length > 2));
-        if (!mlWords.size || !byTitle) return null;
-
-        let best = null, bestScore = 0;
-        for (const [norm, titulo] of Object.entries(byTitle)) {
-            const catWords = norm.split(' ').filter(w => w.length > 2);
-            if (!catWords.length) continue;
-            // Contar cuántas palabras del catálogo aparecen en el título de ML
-            // (aceptar también que una sea prefijo de la otra para "niño" / "niños")
-            const overlap = catWords.filter(cw =>
-                mlWords.has(cw) || [...mlWords].some(mw => mw.startsWith(cw) || cw.startsWith(mw))
-            ).length;
-            const score = overlap / catWords.length;
-            if (score >= 0.75 && overlap > bestScore) {
-                best = titulo;
-                bestScore = overlap;
-            }
-        }
-        return best;
     }
 
     function fmtHoraDesglose(dateStr) {
@@ -6337,6 +6370,9 @@
     inicializarBuscador();
     wireCompareBtn();
     aplicarPrefs();
+    // Horarios guardados ANTES del primer pintado (si no, el chip salía "💤 Sin datos"
+    // hasta que respondía la red).
+    aplicarCacheHorarios(leerCacheHorarios());
     resultadosCache = leerResultadosCache();
     resultadosAnterior = leerAnterior();
     if (resultadosCache) {
