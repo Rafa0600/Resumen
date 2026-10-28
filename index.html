@@ -1541,6 +1541,81 @@
             cursor: pointer; text-align: left; }
         .bq-buyer-btn span { font-size: 11px; color: var(--muted); }
 
+        /* ── Preparación (historial de la nube): mantener apretada una venta ── */
+        .bq-venta { -webkit-touch-callout: none; }
+        .bq-tag.prep { background: rgba(255,230,0,.14); color: var(--yellow); cursor: pointer; }
+        .bq-lp-hint { font-size: 10.5px; color: var(--muted); text-align: center; margin: -2px 0 2px; }
+        .prep-ov { position: fixed; inset: 0; z-index: 9999; background: rgba(0,0,0,.6); display: none;
+            align-items: flex-end; justify-content: center; }
+        .prep-ov.open { display: flex; }
+        .prep-sheet { width: 100%; max-width: 560px; max-height: 88vh; overflow-y: auto; background: var(--surface);
+            border: 1px solid var(--border-bright); border-radius: 18px 18px 0 0; padding: 14px 14px 26px; }
+        .prep-head { display: flex; align-items: center; justify-content: space-between; font-weight: 800;
+            font-size: 15px; margin-bottom: 10px; }
+        .prep-head button { background: var(--surface-2); color: var(--text); border: none; border-radius: 10px;
+            width: 34px; height: 34px; font-size: 18px; cursor: pointer; }
+        .prep-card { background: var(--surface-2); border: 1px solid var(--border-bright); border-radius: 14px;
+            padding: 12px; margin-bottom: 10px; }
+        .prep-pills { display: flex; gap: 6px; flex-wrap: wrap; margin-bottom: 6px; }
+        .prep-pill { border-radius: 8px; padding: 3px 10px; font-weight: 900; font-size: 13px; color: #fff; }
+        .prep-pill.Mikra { background: #2563eb; } .prep-pill.Chaya { background: #db2777; }
+        .prep-pill.flex { background: #0f766e; } .prep-pill.colecta { background: #b45309; }
+        .prep-hora { font-family: 'Space Mono', monospace; font-size: 34px; font-weight: 700; color: var(--yellow); line-height: 1.05; }
+        .prep-dia { font-weight: 800; margin-top: 2px; }
+        .prep-cam { font-size: 13px; color: var(--muted-2); margin-top: 6px; }
+        .prep-cam b { color: var(--text); }
+        .prep-adj { font-size: 12px; font-weight: 700; color: var(--green); margin-top: 4px; }
+        .prep-meta { font-size: 11.5px; color: var(--muted); margin-top: 8px; }
+        .prep-who { font-size: 13px; color: var(--text); margin-top: 6px; }
+        .prep-btn { width: 100%; margin-top: 10px; padding: 10px; border-radius: 10px; border: none;
+            background: var(--surface); color: var(--text); font-weight: 700; font-family: inherit; cursor: pointer; }
+        .prep-cuadros { display: flex; flex-wrap: wrap; gap: 3px; margin: 8px 0; }
+        .prep-cuadros i { width: 11px; height: 11px; border-radius: 2px; display: block; }
+        .prep-fila { display: flex; gap: 8px; align-items: center; padding: 7px 4px; border-bottom: 1px solid var(--border);
+            font-size: 13px; }
+        .prep-fila.yo { background: rgba(255,230,0,.13); border-radius: 8px; }
+        .prep-fila .n { min-width: 48px; font-weight: 900; }
+        .prep-fila .h { margin-left: auto; color: var(--yellow); font-family: 'Space Mono', monospace; font-weight: 700; }
+        .prep-vacio { color: var(--muted-2); text-align: center; padding: 18px 6px; font-size: 13px; }
+        .prep-its { display: flex; flex-direction: column; gap: 6px; margin-top: 10px; }
+        .prep-it { display: flex; gap: 10px; align-items: center; background: var(--surface); border-radius: 10px; padding: 6px; }
+        .prep-it img, .prep-it .sin { width: 64px; height: 64px; border-radius: 8px; object-fit: cover; background: #fff; flex: none; }
+        .prep-it .n { font-size: 12px; color: var(--muted-2); }
+        .prep-it .c { font-weight: 800; font-size: 15px; }
+        .prep-it .t { color: var(--yellow); font-weight: 800; }
+        .prep-it .q { margin-left: auto; background: var(--red); color: #fff; border-radius: 8px; padding: 2px 8px; font-weight: 900; }
+        .prep-nav { display: flex; gap: 8px; margin-bottom: 8px; }
+        .prep-nav button { flex: 1; padding: 10px; border: none; border-radius: 10px; background: var(--surface-2);
+            color: var(--text); font-weight: 800; font-family: inherit; cursor: pointer; }
+
+        /* ── Pedidos del día en cuadritos con fotos (para ubicarse en la cámara) ── */
+        .pd-dia { display: flex; align-items: center; gap: 8px; margin-bottom: 8px; }
+        .pd-dia b { flex: 1; text-align: center; font-size: 16px; }
+        .pd-dia button { width: 44px; height: 38px; border-radius: 10px; border: none; background: var(--surface-2);
+            color: var(--text); font-size: 20px; font-weight: 800; cursor: pointer; }
+        .pd-dia button:disabled { opacity: .3; }
+        .pd-cnt { font-size: 12px; color: var(--muted-2); min-height: 16px; margin: 2px 2px 6px; }
+        .pd-sec { margin: 12px 2px 6px; display: flex; align-items: baseline; gap: 8px; flex-wrap: wrap; }
+        .pd-sec b { color: var(--yellow); font-size: 16px; }
+        .pd-sec span { color: var(--muted); font-size: 11.5px; }
+        .pd-grilla { display: grid; grid-template-columns: repeat(auto-fill, minmax(100px, 1fr)); gap: 7px; }
+        .pd-tile { background: var(--surface-2); border: 2px solid var(--border); border-radius: 12px; overflow: hidden;
+            cursor: pointer; transition: opacity .15s; }
+        .pd-tile.apagado { opacity: .15; }
+        .pd-tile.match { border-color: var(--green); }
+        .pd-tile.sel { border-color: var(--yellow); box-shadow: 0 0 0 3px rgba(255,230,0,.45); }
+        .pd-tile .cab { display: flex; justify-content: space-between; align-items: center; padding: 3px 6px; color: #fff; }
+        .pd-tile .cab b { font-size: 15px; font-weight: 900; }
+        .pd-tile .cab i { font-style: normal; font-size: 11px; font-weight: 700; }
+        .pd-tile .fotos { display: grid; grid-template-columns: 1fr 1fr; gap: 2px; background: #fff; aspect-ratio: 1; }
+        .pd-tile .fotos.uno { grid-template-columns: 1fr; }
+        .pd-tile .fotos img { width: 100%; height: 100%; object-fit: cover; display: block; }
+        .pd-tile .fotos .mas { display: flex; align-items: center; justify-content: center; background: #334155; color: #fff; font-weight: 900; }
+        .pd-tile .fotos .vacia { display: flex; align-items: center; justify-content: center; color: #64748b; font-size: 11px;
+            background: #e2e8f0; text-align: center; padding: 4px; }
+        .pd-tile .pie { padding: 3px 6px; font-size: 10.5px; color: var(--muted-2); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+        .pd-tile .dot { width: 8px; height: 8px; border-radius: 50%; display: inline-block; margin-right: 3px; }
+
         /* ── MODAL PRUEBA U/PAQ ── */
         .pu-order { border:1px solid var(--border); border-radius:10px; padding:8px 10px; margin-bottom:8px; background:rgba(255,255,255,0.02); }
         .pu-head { display:flex; justify-content:space-between; align-items:baseline; font-size:12px; color:var(--muted-2); margin-bottom:5px; }
@@ -5520,7 +5595,7 @@
         const ids = [v.key, ...orders.map(o => String(o.id)), ship ? String(ship.id) : ''];
         const esMatch = !!(claves && claves.some(k => k && ids.includes(String(k))));
         const items = _scanItemsHTML(orders, ship) || '';
-        return `<div class="sc-card bq-venta ${cta.css}${esMatch ? ' bq-match' : ''}">` +
+        return `<div class="sc-card bq-venta ${cta.css}${esMatch ? ' bq-match' : ''}" data-prep="${escHtml(ids.filter(Boolean).join(','))}">` +
             `<div class="sc-top"><span class="sc-cuenta">${escHtml(cta.nombre)}</span>` +
                 `<span class="bq-fecha">🕒 ${escHtml(_bqFecha(v.fecha))}</span>` +
                 `<span class="sc-logistic">${_logisticoTxt(ship, cta)}</span></div>` +
@@ -5572,7 +5647,9 @@
         const ventas = porCuenta.flat().sort((a, b) => String(b.fecha || '').localeCompare(String(a.fecha || '')));
         if (!ventas.length) return _bqError(`No encontré compras de ${nick || buyerId}.`);
         res.innerHTML = _bqResumenHTML(nick || String(buyerId), ventas) +
+            '<div class="bq-lp-hint">Mantené apretada una compra para ver cuándo se armó 🕒</div>' +
             ventas.map(v => _bqVentaHTML(v, claves)).join('');
+        _prepMarcar(res, seq);
         const m = res.querySelector('.bq-match');
         if (m) m.scrollIntoView({ block: 'center', behavior: 'smooth' });
     }
@@ -5613,6 +5690,248 @@
         }
     }
 
+    // ══════════════════════════════════════════════
+    //  PREPARACIÓN: cuándo se armó cada compra (historial que sube Etiquetas ML a
+    //  mikra-historial). Mantener apretada una compra (o tocar "📦 armado …") abre
+    //  la hora aprox., la ventana para mirar la cámara y la tanda completa.
+    //  La clave NO va en el código (el repo es público): se pide una vez y queda
+    //  guardada en el celular.
+    // ══════════════════════════════════════════════
+    const HIST_URL = 'https://mikra-historial.rafaelassir.workers.dev';
+    const _PREP_DIAS = ['domingo', 'lunes', 'martes', 'miércoles', 'jueves', 'viernes', 'sábado'];
+
+    function _histClave(pedir) {
+        let c = '';
+        try { c = localStorage.getItem('clave_hist') || ''; } catch (e) {}
+        if (!c && pedir) {
+            c = (prompt('Clave del historial de preparación (la misma de la página del historial):') || '').trim();
+            if (c) try { localStorage.setItem('clave_hist', c); } catch (e) {}
+        }
+        return c;
+    }
+
+    async function _histGet(path, pedir) {
+        let c = _histClave(pedir);
+        if (!c) return null;
+        let r = await fetch(HIST_URL + path, { headers: { 'X-Clave': c } });
+        if (r.status === 401) {
+            try { localStorage.removeItem('clave_hist'); } catch (e) {}
+            if (!pedir) return null;
+            c = _histClave(true);
+            if (!c) return null;
+            r = await fetch(HIST_URL + path, { headers: { 'X-Clave': c } });
+        }
+        return r.ok ? r.json() : null;
+    }
+
+    // "2026-10-27T11:50:12" (hora AR, sin zona) → partes
+    function _prepHd(iso) {
+        const m = String(iso || '').match(/(\d{4})-(\d{2})-(\d{2})[T ](\d{2}):(\d{2})/);
+        if (!m) return null;
+        const d = new Date(+m[1], +m[2] - 1, +m[3]);
+        const hoy = new Date(); hoy.setHours(0, 0, 0, 0);
+        const dias = Math.round((hoy - d) / 86400000);
+        return { hm: `${m[4]}:${m[5]}`, dia: _PREP_DIAS[d.getDay()], dm: `${m[3]}/${m[2]}`,
+                 rel: dias === 0 ? 'hoy' : dias === 1 ? 'ayer' : '' };
+    }
+
+    // Pide de una vez la preparación de TODAS las compras mostradas y les pone "📦 armado …"
+    async function _prepMarcar(res, seq) {
+        if (!_histClave(false)) return;               // sin clave guardada no molesta
+        const cards = [...res.querySelectorAll('.bq-venta[data-prep]')];
+        const ids = [...new Set(cards.flatMap(c => c.dataset.prep.split(',')))].slice(0, 200);
+        if (!ids.length) return;
+        const r = await _histGet('/api/ventas?ids=' + ids.join(','), false).catch(() => null);
+        if (!r || seq !== _bqSeq) return;
+        cards.forEach(card => {
+            const mios = new Set(card.dataset.prep.split(','));
+            const f = (r.filas || []).find(x => mios.has(String(x.venta)) || mios.has(String(x.envio)));
+            const e = f && _prepHd(f.est);
+            if (!e) return;
+            const tags = card.querySelector('.bq-tags');
+            if (tags && !tags.querySelector('.prep')) tags.insertAdjacentHTML('afterbegin',
+                `<span class="bq-tag prep" data-prep-abrir="1">📦 armado ${e.rel || e.dia + ' ' + e.dm} ${e.hm}</span>`);
+        });
+    }
+
+    function _prepOverlay() {
+        let ov = document.getElementById('prepOv');
+        if (!ov) {
+            ov = document.createElement('div');
+            ov.id = 'prepOv'; ov.className = 'prep-ov';
+            ov.innerHTML = '<div class="prep-sheet"><div class="prep-head"><span>🕒 Cuándo se armó</span>' +
+                '<button aria-label="Cerrar">×</button></div><div id="prepBody"></div></div>';
+            document.body.appendChild(ov);
+            ov.addEventListener('click', e => {
+                if (e.target === ov || e.target.closest('.prep-head button')) ov.classList.remove('open');
+                const t = e.target.closest('[data-tanda]');
+                if (t) _prepTanda(t.dataset.tanda, +t.dataset.hoja);
+            });
+        }
+        ov.classList.add('open');
+        return document.getElementById('prepBody');
+    }
+
+    function _prepCardHTML(f, conBoton) {
+        const e = _prepHd(f.est), a = _prepHd(f.est_ini), b = _prepHd(f.est_fin);
+        const imp = _prepHd(f.impreso), ti = _prepHd(f.tanda_ini), tf = _prepHd(f.tanda_fin);
+        const tipo = f.tipo === 'flex' ? 'FLEX ' : 'COLECTA ';
+        const dia = e ? (e.rel ? e.rel.charAt(0).toUpperCase() + e.rel.slice(1) + ' · ' : '') + e.dia + ' ' + e.dm : '';
+        return `<div class="prep-card">` +
+            `<div class="prep-pills"><span class="prep-pill ${escHtml(f.cuenta)}">${escHtml((f.cuenta || '?').toUpperCase())}</span>` +
+            `<span class="prep-pill ${escHtml(f.tipo)}">${tipo}${escHtml(f.numero || '')}</span></div>` +
+            (e ? `<div class="prep-hora">${e.hm}</div><div class="prep-dia">${escHtml(dia)}</div>` : '') +
+            (a && b ? `<div class="prep-cam">🎥 Mirar la cámara entre <b>${a.hm}</b> y <b>${b.hm}</b></div>` : '') +
+            (+f.ajustado ? `<div class="prep-adj">📌 Hora ajustada mirando el video</div>` : '') +
+            (f.comprador ? `<div class="prep-who">👤 ${escHtml(f.comprador)}${f.destino ? ' · ' + escHtml(f.destino) : ''}</div>` : '') +
+            _prepItemsHTML(f.items) +
+            `<div class="prep-meta">Tanda impresa ${imp ? imp.hm : '?'} · hoja ${+f.hoja + 1} de ${escHtml(f.hojas)}` +
+            (ti && tf ? ` · se armó de ${ti.hm} a ${tf.hm}` : '') + `</div>` +
+            (conBoton ? `<button class="prep-btn" data-tanda="${escHtml(f.pdf)}" data-hoja="${escHtml(f.hoja)}">📋 Ver toda la tanda (con fotos)</button>` : '') +
+            `</div>`;
+    }
+
+    function _prepItems(items) {
+        try { return typeof items === 'string' ? JSON.parse(items) : (items || []); } catch (e) { return []; }
+    }
+    const _prepGrande = u => String(u || '').replace(/-I\.jpg$/, '-V.jpg');   // 320 px
+    function _prepItemsHTML(items) {
+        const its = _prepItems(items);
+        if (!its.length) return '';
+        return '<div class="prep-its">' + its.map(i => `<div class="prep-it">` +
+            (i.img ? `<img loading="lazy" src="${escHtml(_prepGrande(i.img))}" alt="">` : '<div class="sin"></div>') +
+            `<div><div class="n">${escHtml(i.n || '')}</div><div><span class="c">${escHtml(i.c || '')}</span>` +
+            (i.t ? ` &nbsp;<span class="t">T: ${escHtml(i.t)}</span>` : '') + `</div></div>` +
+            ((+i.q || 1) > 1 ? `<span class="q">×${escHtml(i.q)}</span>` : '') + `</div>`).join('') + '</div>';
+    }
+
+    // ══════════════════════════════════════════════
+    //  TANDA en cuadritos (desde la lupa: mantener apretada una compra → "Ver toda
+    //  la tanda"): cada paquete (C35, #21…) con su hora y las FOTOS de lo que lleva,
+    //  en el orden en que se armó; el buscado resaltado en amarillo. Con la cámara
+    //  al lado se ve "en qué paquete anda" y si hay que ir para atrás o adelante.
+    //  Filtro por color/artículo ("amarillo") y tocar → detalle con ‹ anterior / siguiente ›.
+    // ══════════════════════════════════════════════
+    let _pdFilas = [], _pdSel = -1, _pdVisto = -1;
+
+    function _pdSinAcento(t) { return String(t || '').toUpperCase().normalize('NFD').replace(/[\u0300-\u036f]/g, ''); }
+    function _pdTexto(f) {
+        return _pdSinAcento((f.busca || '') + ' ' + _prepItems(f.items).map(i => `${i.n} ${i.c} ${i.t}`).join(' '));
+    }
+
+    function _pdTileHTML(f, k) {
+        const e = _prepHd(f.est);
+        const its = _prepItems(f.items), conFoto = its.filter(i => i.img);
+        const max = conFoto.length > 4 ? 3 : 4;
+        const fotos = !its.length ? '<div class="fotos uno"><div class="vacia">sin detalle</div></div>'
+            : !conFoto.length ? `<div class="fotos uno"><div class="vacia">${escHtml(its[0].n)}</div></div>`
+            : `<div class="fotos${conFoto.length === 1 ? ' uno' : ''}">` +
+              conFoto.slice(0, max).map(i => `<img loading="lazy" src="${escHtml(_prepGrande(i.img))}" alt="">`).join('') +
+              (conFoto.length > 4 ? `<div class="mas">+${conFoto.length - 3}</div>` : '') + '</div>';
+        return `<div class="pd-tile${k === _pdSel ? ' sel' : ''}" data-k="${k}">` +
+            `<div class="cab" style="background:${f.tipo === 'flex' ? '#0f766e' : '#b45309'}"><b>${escHtml(f.numero || '?')}</b><i>${e ? e.hm : ''}</i></div>` +
+            fotos + `<div class="pie"><span class="dot" style="background:${f.cuenta === 'Chaya' ? '#db2777' : '#2563eb'}"></span>${escHtml(f.comprador || '')}</div></div>`;
+    }
+
+    async function _prepTanda(pdf, hoja) {
+        const body = document.getElementById('prepBody');
+        body.innerHTML = '<div class="prep-vacio">Cargando la tanda…</div>';
+        const r = await _histGet('/api/tanda?pdf=' + encodeURIComponent(pdf), true).catch(() => null);
+        _pdFilas = (r && r.filas) || [];
+        if (!_pdFilas.length) { body.innerHTML = '<div class="prep-vacio">Sin datos</div>'; return; }
+        _pdSel = _pdFilas.findIndex(x => +x.hoja === hoja);
+        _pdVisto = _pdSel;
+        _pdVerGrilla();
+    }
+
+    function _pdVerGrilla() {
+        const body = document.getElementById('prepBody');
+        const f0 = _pdFilas[0];
+        const i = _prepHd(f0.impreso), a = _prepHd(f0.tanda_ini), b = _prepHd(f0.tanda_fin);
+        const yo = _pdFilas[_pdSel];
+        body.innerHTML =
+            `<div class="pd-sec" style="margin-top:0"><b>Tanda de las ${i ? i.hm : '?'}</b><span>${i ? i.dia + ' ' + i.dm : ''} · ` +
+            `${_pdFilas.length} paquetes${a && b ? ` · se armó de ${a.hm} a ${b.hm}` : ''}${+f0.ajustado ? ' · 📌' : ''}</span></div>` +
+            (yo ? `<div class="pd-cnt">🟨 El tuyo: <b>${escHtml(yo.numero || '')}</b> · ${escHtml(yo.comprador || '')} · ${(_prepHd(yo.est) || {}).hm || ''}</div>` : '') +
+            `<div class="bq-bar" style="position:static;padding:0 0 4px"><input id="pdFiltro" type="search" autocomplete="off" spellcheck="false" ` +
+            `placeholder="Filtrar: color, artículo, talle, comprador…"></div>` +
+            `<div class="pd-cnt" id="pdCnt">Tocá un paquete para ver qué lleva</div>` +
+            `<div class="pd-grilla" id="pdRes">${_pdFilas.map(_pdTileHTML).join('')}</div>`;
+        document.getElementById('pdFiltro').addEventListener('input', _pdFiltrar);
+        document.getElementById('pdRes').addEventListener('click', e => {
+            const t = e.target.closest('.pd-tile');
+            if (t) _pdDetalle(+t.dataset.k);
+        });
+        const t = body.querySelector(`.pd-tile[data-k="${_pdVisto}"]`);
+        if (t) t.scrollIntoView({ block: 'center' });
+    }
+
+    function _pdFiltrar() {
+        const q = document.getElementById('pdFiltro').value.trim();
+        const pal = _pdSinAcento(q).split(/\s+/).filter(Boolean);
+        let n = 0, primero = null;
+        document.querySelectorAll('#pdRes .pd-tile').forEach(t => {
+            const ok = !pal.length || pal.every(w => _pdTexto(_pdFilas[+t.dataset.k]).includes(w));
+            t.classList.toggle('apagado', !ok);
+            t.classList.toggle('match', ok && pal.length > 0);
+            if (ok) { n++; if (!primero) primero = t; }
+        });
+        document.getElementById('pdCnt').textContent = pal.length
+            ? `${n} paquete${n === 1 ? '' : 's'} con “${q}”` : 'Tocá un paquete para ver qué lleva';
+        if (pal.length && primero) primero.scrollIntoView({ block: 'center', behavior: 'smooth' });
+    }
+
+    function _pdDetalle(k) {
+        const f = _pdFilas[k];
+        if (!f) return;
+        _pdVisto = k;
+        const body = document.getElementById('prepBody');
+        body.innerHTML = '<div class="prep-nav"><button id="pdVolver">‹ Tanda</button>' +
+            '<button id="pdAnt">‹ anterior</button><button id="pdSig">siguiente ›</button></div>' +
+            (k === _pdSel ? '<div class="pd-cnt">🟨 Este es el que buscaste</div>' : '') +
+            _prepCardHTML(f, false);
+        body.closest('.prep-sheet').scrollTop = 0;
+        document.getElementById('pdVolver').onclick = _pdVerGrilla;
+        document.getElementById('pdAnt').onclick = () => { if (k > 0) _pdDetalle(k - 1); };
+        document.getElementById('pdSig').onclick = () => { if (k < _pdFilas.length - 1) _pdDetalle(k + 1); };
+    }
+
+    async function _prepAbrir(ids) {
+        const body = _prepOverlay();
+        body.innerHTML = '<div class="prep-vacio">Buscando…</div>';
+        try {
+            const r = await _histGet('/api/ventas?ids=' + encodeURIComponent(ids), true);
+            if (!r) { body.innerHTML = '<div class="prep-vacio">Sin clave no puedo ver el historial.</div>'; return; }
+            const vistos = new Set();
+            const filas = (r.filas || []).filter(f => { const k = f.pdf + '|' + f.hoja; if (vistos.has(k)) return false; vistos.add(k); return true; });
+            body.innerHTML = filas.length ? filas.map(f => _prepCardHTML(f, true)).join('') +
+                (filas.length > 1 ? '<div class="prep-meta">Se imprimió más de una vez (reimpresión).</div>' : '')
+                : '<div class="prep-vacio">No hay datos de preparación de esta compra.<br>' +
+                  '(El historial arranca el 7/5, y solo tiene lo impreso con el programa de etiquetas.)</div>';
+        } catch (e) { body.innerHTML = '<div class="prep-vacio">Sin conexión 😕</div>'; }
+    }
+
+    // Mantener apretada (celular o mouse) una compra del buscador
+    function _prepLongPress(cont) {
+        let timer = null, x0 = 0, y0 = 0;
+        const cancelar = () => { clearTimeout(timer); timer = null; };
+        cont.addEventListener('pointerdown', e => {
+            const card = e.target.closest('.bq-venta[data-prep]');
+            if (!card) return;
+            x0 = e.clientX; y0 = e.clientY;
+            cancelar();
+            timer = setTimeout(() => {
+                timer = null;
+                cont._lpHecho = true;
+                if (navigator.vibrate) navigator.vibrate(25);
+                _prepAbrir(card.dataset.prep);
+            }, 550);
+        });
+        cont.addEventListener('pointermove', e => { if (timer && Math.hypot(e.clientX - x0, e.clientY - y0) > 10) cancelar(); });
+        ['pointerup', 'pointercancel', 'pointerleave'].forEach(t => cont.addEventListener(t, cancelar));
+        cont.addEventListener('contextmenu', e => { if (e.target.closest('.bq-venta')) e.preventDefault(); });
+    }
+
     function abrirBuscador() {
         document.getElementById('buscarModal').classList.add('open');
         // Focus SINCRÓNICO: en el celular el teclado solo se abre si el focus ocurre
@@ -5631,7 +5950,12 @@
         const ir = () => { const v = document.getElementById('buscarInput').value.trim(); if (v) buscarComprador(v); };
         document.getElementById('buscarGo').onclick = ir;
         document.getElementById('buscarInput').addEventListener('keydown', e => { if (e.key === 'Enter') ir(); });
+        _prepLongPress(document.getElementById('buscarResult'));
         document.getElementById('buscarResult').addEventListener('click', e => {
+            const res = document.getElementById('buscarResult');
+            if (res._lpHecho) { res._lpHecho = false; e.preventDefault(); return; }   // fue mantener apretado
+            const pa = e.target.closest('[data-prep-abrir]');
+            if (pa) { _prepAbrir(pa.closest('.bq-venta').dataset.prep); return; }
             const cp = e.target.closest('[data-copy]');
             if (cp) {
                 if (navigator.clipboard) navigator.clipboard.writeText(cp.dataset.copy).catch(() => {});
