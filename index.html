@@ -1541,6 +1541,49 @@
             cursor: pointer; text-align: left; }
         .bq-buyer-btn span { font-size: 11px; color: var(--muted); }
 
+        /* ── Stock de otros colores/talles (tocar un artículo en la lupa / escáner) ── */
+        .sc-item[data-stock-sku] { cursor: pointer; -webkit-tap-highlight-color: transparent; }
+        .sc-item[data-stock-sku]:active { background: var(--border-bright); }
+        .sc-stock-hint { display: inline-block; margin-top: 4px; font-size: 10.5px; font-weight: 700;
+            color: var(--blue); background: rgba(64,196,255,.12); border-radius: 6px; padding: 2px 7px; }
+        .stk-art { display: flex; gap: 10px; align-items: center; }
+        .stk-art .fdi-thumb { width: 48px; height: 48px; }
+        .stk-nom { font-size: 16px; font-weight: 800; color: var(--text); line-height: 1.2; }
+        .stk-compro { font-size: 12px; color: var(--muted-2); margin-top: 3px; }
+        .stk-compro b { color: var(--yellow); }
+        .stk-bar { display: flex; align-items: center; justify-content: space-between; gap: 8px;
+            margin: 12px 0 8px; flex-wrap: wrap; }
+        .stk-src { font-size: 11.5px; color: var(--muted-2); }
+        .stk-src.vivo { color: var(--green); font-weight: 700; }
+        .stk-ecom { background: rgba(0,230,118,.1); color: var(--green); border: 1px solid rgba(0,230,118,.45);
+            border-radius: 10px; padding: 8px 12px; font-family: inherit; font-size: 13px; font-weight: 800; cursor: pointer; }
+        .stk-ecom:disabled { opacity: .7; cursor: default; }
+        .stk-resp { background: var(--surface-2); border-radius: 12px; padding: 9px 11px; margin-bottom: 10px;
+            font-size: 12.5px; line-height: 1.55; }
+        .stk-resp b { color: var(--text); }
+        .stk-resp .ok { color: var(--green); font-weight: 700; }
+        .stk-resp .no { color: var(--red); font-weight: 700; }
+        .stk-wrap { overflow-x: auto; border: 1px solid var(--border-bright); border-radius: 12px; }
+        .stk-tabla { border-collapse: collapse; width: 100%; font-size: 13px; }
+        .stk-tabla th { background: var(--surface-2); color: var(--muted-2); font-size: 11px; font-weight: 700;
+            padding: 7px 3px; white-space: nowrap; }
+        .stk-tabla th.yo { color: var(--yellow); }
+        .stk-tabla td { padding: 0; text-align: center; border-top: 1px solid var(--border); }
+        .stk-tabla td.tyo { background: rgba(255,230,0,.05); }
+        .stk-tabla td.col { text-align: left; padding: 8px; font-weight: 600; color: var(--text); font-size: 12px;
+            line-height: 1.2; position: sticky; left: 0; background: var(--surface); min-width: 84px; max-width: 128px; }
+        .stk-tabla tr.yo td.col { color: var(--yellow); }
+        .stk-tabla tr.sin td.col { color: var(--muted); font-weight: 500; }
+        .stk-c { display: block; padding: 10px 2px; min-width: 36px; font-family: 'Space Mono', monospace;
+            font-weight: 700; cursor: pointer; }
+        .stk-c.s0 { color: var(--muted); opacity: .5; font-weight: 400; }
+        .stk-c.pocos { color: var(--orange); }
+        .stk-c.hay { color: var(--green); }
+        .stk-c.na { color: var(--border-bright); cursor: default; }
+        .stk-c.yo { outline: 2px solid var(--yellow); outline-offset: -4px; border-radius: 7px; }
+        .stk-c.cambio { text-decoration: underline dotted var(--blue); text-underline-offset: 3px; }
+        .stk-ley { font-size: 10.5px; color: var(--muted); margin-top: 8px; line-height: 1.5; }
+
         /* ── Preparación (historial de la nube): mantener apretada una venta ── */
         .bq-venta { -webkit-touch-callout: none; }
         .bq-tag.prep { background: rgba(255,230,0,.14); color: var(--yellow); cursor: pointer; }
@@ -4720,7 +4763,8 @@
         document.querySelectorAll('.tipo-box[data-printed]').forEach(el => _wireDesgloseEl(el, 'printed'));
 
         // Animar deltas solo en datos frescos (no al pintar desde caché).
-        if (!fromCache && oldSnap) animarDeltas(oldSnap, newSnap);
+        // (no con una ventana abierta: los "+N" volaban por ENCIMA de la lupa/desglose)
+        if (!fromCache && oldSnap && !_hayModalAbierto()) animarDeltas(oldSnap, newSnap);
         prevReadySnapshot = newSnap;
     }
 
@@ -4807,7 +4851,8 @@
     // ventana abierta (desglose, lupa, ajustes…) la página de fondo siempre está en
     // scrollY 0, así que subir la lista de la ventana con el dedo disparaba un ⟳ completo.
     let touchStartY = null;
-    const _hayModalAbierto = () => !!document.querySelector('.modal-overlay.open');
+    // function (no const): renderResultados la usa y puede correr antes de llegar a esta línea
+    function _hayModalAbierto() { return !!document.querySelector('.modal-overlay.open, .prep-ov.open'); }
     document.addEventListener('touchstart', e => {
         touchStartY = (window.scrollY === 0 && !_hayModalAbierto()) ? e.touches[0].clientY : null;
     }, { passive: true });
@@ -4982,6 +5027,9 @@
         });
         // Copiar nº de orden desde la tarjeta de resultado
         document.getElementById('scanResult').addEventListener('click', e => {
+            // Tocar un artículo → stock de otros colores/talles
+            const stk = e.target.closest('[data-stock-sku]');
+            if (stk) { abrirStockArticulo(stk.dataset.stockSku); return; }
             const o = e.target.closest('.sc-order[data-order]');
             if (!o) return;
             const id = o.dataset.order;
@@ -5353,14 +5401,18 @@
     function _scanItemsHTML(orders, ship) {
         const imgMap = _getImgMap();
         const filas = _filasPedido(orders);
+        const cat = buildStockCatalog();
         if (filas.length) {
             return filas.map(g => {
                 const ct = [g.color, g.extra, g.talle].filter(Boolean).join(' · ');
                 const sub = [g.sku ? 'SKU ' + g.sku : '', ct].filter(Boolean).join('  ·  ');
                 const tag = g.conj ? '<span class="pu-tag conj">conjunto</span>' : '';
-                return `<div class="sc-item">${_fdThumb(g.sku, imgMap)}` +
+                // Tocar el artículo → stock de otros colores/talles (si el SKU está en el catálogo)
+                const conStock = g.sku && !_esTecSku(g.sku) && cat && cat.bySku[String(g.sku)];
+                return `<div class="sc-item"${conStock ? ` data-stock-sku="${escHtml(String(g.sku))}"` : ''}>${_fdThumb(g.sku, imgMap)}` +
                     `<div class="sc-item-info"><div class="sc-item-title">${escHtml(g.nombre)} ${tag}</div>` +
-                    (sub ? `<div class="sc-item-sub">${escHtml(sub)}</div>` : '') + `</div>` +
+                    (sub ? `<div class="sc-item-sub">${escHtml(sub)}</div>` : '') +
+                    (conStock ? `<span class="sc-stock-hint">📦 ver stock ›</span>` : '') + `</div>` +
                     `<div class="sc-item-qty">×${g.u}</div></div>`;
             }).join('');
         }
@@ -5932,6 +5984,243 @@
         cont.addEventListener('contextmenu', e => { if (e.target.closest('.bq-venta')) e.preventDefault(); });
     }
 
+    // ══════════════════════════════════════════════
+    //  STOCK PARA UN CAMBIO: tocar un artículo (lupa o escáner) → grilla colores × talles
+    //  del MISMO artículo, para responder "¿tenés en S? ¿y en azul?".
+    //  · Stock de la NUBE (Cloudflare = lo último que se subió). Al abrir se chequea
+    //    ?mode=meta: si hay una subida más nueva, se baja sola y se redibuja.
+    //  · "⟳ Ecom en vivo": stock REAL de cada SKU (worker ecomm-token-proxy /get-stock).
+    // ══════════════════════════════════════════════
+    const ECOMM_PROXY = 'https://ecomm-token-proxy.rafaelassir.workers.dev';
+    const _stkVivo = new Map();   // sku → { stock, t }  (Ecom en vivo; solo en memoria)
+    let _stkActual = null;        // { sku, nube, ecom } del panel abierto
+    let _catArtMem = null, _catArtDe = null;
+
+    // Índice artículo → variantes, armado una vez por catálogo
+    function _catPorArticulo() {
+        const cat = buildStockCatalog();
+        if (!cat) return null;
+        if (_catArtDe === cat) return _catArtMem;
+        const m = new Map();
+        for (const sku in cat.bySku) {
+            const e = cat.bySku[sku];
+            if (!e.titulo) continue;
+            let arr = m.get(e.titulo);
+            if (!arr) m.set(e.titulo, arr = []);
+            arr.push({ sku, color: e.color || '', talle: e.talle || '', stock: e.stock });
+        }
+        _catArtMem = m; _catArtDe = cat;
+        return m;
+    }
+
+    // "2026-10-28T10:11:59.31" (hora AR tal cual) → "hoy 10:11" / "ayer 18:30" / "26/10 09:05"
+    function _stkSubida(lm) {
+        const m = String(lm || '').match(/^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2})/);
+        if (!m) return '';
+        const dia = `${m[1]}-${m[2]}-${m[3]}`, hhmm = `${m[4]}:${m[5]}`;
+        const hoy = _hoyAR();
+        if (dia === hoy) return `hoy ${hhmm}`;
+        const [y, mo, d] = hoy.split('-').map(Number);
+        if (dia === _fmtDiaAR(new Date(y, mo - 1, d - 1))) return `ayer ${hhmm}`;
+        return `${+m[3]}/${+m[2]} ${hhmm}`;
+    }
+
+    async function _enPool(items, n, tarea) {
+        let sig = 0;
+        await Promise.all(Array.from({ length: Math.min(n, items.length) }, async () => {
+            while (sig < items.length) await tarea(items[sig++]);
+        }));
+    }
+
+    function _stkOverlay() {
+        let ov = document.getElementById('stkOv');
+        if (!ov) {
+            ov = document.createElement('div');
+            ov.id = 'stkOv'; ov.className = 'prep-ov';
+            ov.innerHTML = '<div class="prep-sheet"><div class="prep-head"><span>📦 Stock para un cambio</span>' +
+                '<button aria-label="Cerrar">×</button></div><div id="stkBody"></div></div>';
+            document.body.appendChild(ov);
+            ov.addEventListener('click', e => {
+                if (e.target === ov || e.target.closest('.prep-head button')) {
+                    ov.classList.remove('open'); _stkActual = null; return;
+                }
+                if (e.target.closest('#stkEcom')) { _stkEcomVivo(); return; }
+                // Tocar un número → copia ese SKU (para hacer el cambio)
+                const c = e.target.closest('[data-stk-copy]');
+                if (c) {
+                    const sku = c.dataset.stkCopy;
+                    if (navigator.clipboard) navigator.clipboard.writeText(sku).catch(() => {});
+                    const t = document.createElement('div');
+                    t.className = 'fd-toast';
+                    t.style.zIndex = 10050;
+                    t.textContent = `✓ SKU ${sku} copiado · ${c.title.split(' · ').slice(1).join(' · ')}`;
+                    document.body.appendChild(t);
+                    setTimeout(() => t.remove(), 1700);
+                }
+            });
+        }
+        ov.classList.add('open');
+        return document.getElementById('stkBody');
+    }
+
+    window.abrirStockArticulo = async function(sku) {
+        sku = String(sku);
+        _stkActual = { sku, nube: 'chequeando', ecom: null };
+        _stkOverlay();
+        _stkRender();
+        // ¿Hay una subida más nueva en la nube que la que tengo? → bajarla y redibujar
+        let nueva = false;
+        try {
+            const cat = buildStockCatalog();
+            const r = await fetchConTimeout(CF_STOCK_URL + '/?mode=meta', { cache: 'no-store' }, 6000);
+            const meta = await r.json();
+            if (meta && meta.lastModified && meta.lastModified !== (cat && cat.lastModified)) {
+                if (_stkActual && _stkActual.sku === sku) { _stkActual.nube = 'bajando'; _stkRender(); }
+                await _descargarCatalogo([RESUMEN_SKU_KEY]);
+                nueva = true;
+            }
+        } catch (e) {}
+        if (!_stkActual || _stkActual.sku !== sku) return;
+        _stkActual.nube = nueva ? 'recien' : 'ok';
+        _stkRender();
+    };
+
+    function _stkRender() {
+        const body = document.getElementById('stkBody');
+        if (!body || !_stkActual) return;
+        const { sku, nube, ecom } = _stkActual;
+        const cat = buildStockCatalog();
+        const yo = cat && cat.bySku[sku];
+        if (!yo) {
+            body.innerHTML = `<div class="prep-vacio">El SKU ${escHtml(sku)} no está en el stock de la nube.</div>`;
+            return;
+        }
+        const vars = (_catPorArticulo().get(yo.titulo) || []);
+        const stockDe = v => _stkVivo.has(v.sku) ? _stkVivo.get(v.sku).stock : Number(v.stock);
+        const talles = [...new Set(vars.map(v => v.talle || '—'))].sort(_cmpTalle);
+        const porColor = new Map();
+        vars.forEach(v => {
+            const c = v.color || '—';
+            if (!porColor.has(c)) porColor.set(c, new Map());
+            porColor.get(c).set(v.talle || '—', v);
+        });
+        const totalColor = c => [...porColor.get(c).values()].reduce((a, v) => a + Math.max(0, stockDe(v) || 0), 0);
+        const colorYo = yo.color || '—', talleYo = yo.talle || '—';
+        // Filas: lo que compró primero; después los colores CON stock (A-Z); al final los agotados
+        const colores = [...porColor.keys()].sort((a, b) => {
+            if (a === colorYo) return -1; if (b === colorYo) return 1;
+            const ha = totalColor(a) > 0, hb = totalColor(b) > 0;
+            if (ha !== hb) return ha ? -1 : 1;
+            return a.localeCompare(b, 'es');
+        });
+
+        const celda = v => {
+            if (!v) return `<span class="stk-c na">·</span>`;
+            const vivo = _stkVivo.get(v.sku);
+            const n = vivo ? vivo.stock : Number(v.stock);
+            if (!isFinite(n)) return `<span class="stk-c na" title="SKU ${escHtml(v.sku)}">?</span>`;
+            const cls = n <= 0 ? 's0' : n <= 3 ? 'pocos' : 'hay';
+            const cambio = vivo && vivo.stock !== Number(v.stock) ? ' cambio' : '';
+            const tt = `SKU ${v.sku} · ${v.color || ''} ${v.talle || ''}`.trim() +
+                (vivo ? ` · Ecom ${n} (nube ${v.stock})` : ` · nube ${n}`);
+            return `<span class="stk-c ${cls}${cambio}${v.sku === sku ? ' yo' : ''}" data-stk-copy="${escHtml(v.sku)}" title="${escHtml(tt)}">${n}</span>`;
+        };
+
+        // Respuesta rápida para el cambio: mismo color en otros talles / mismo talle en otros colores
+        const conStock = v => v && (stockDe(v) || 0) > 0;
+        const talleTxt = t => t === '—' ? 'único' : t;
+        const otrosTalles = talles.filter(t => t !== talleYo && conStock(porColor.get(colorYo).get(t)));
+        const otrosColores = colores.filter(c => c !== colorYo && conStock(porColor.get(c).get(talleYo)));
+        const lista = (arr, fmt) => arr.length
+            ? `<span class="ok">${arr.map(x => escHtml(fmt(x))).join(', ')}</span>`
+            : `<span class="no">nada</span>`;
+        const resp = (talles.length > 1 ? `En <b>${escHtml(colorYo === '—' ? 'su color' : colorYo)}</b> hay: ${lista(otrosTalles, talleTxt)}<br>` : '') +
+            (porColor.size > 1 ? `En talle <b>${escHtml(talleTxt(talleYo))}</b> hay: ${lista(otrosColores, c => c)}` : '');
+
+        // Origen del dato
+        const vivos = vars.filter(v => _stkVivo.has(v.sku));
+        let src, srcCls = '';
+        if (vivos.length) {
+            const t = new Date(Math.max(...vivos.map(v => _stkVivo.get(v.sku).t)));
+            src = `🟢 Ecom en vivo · ${t.toLocaleTimeString('es-AR', { hour: '2-digit', minute: '2-digit', hour12: false })}` +
+                (vivos.length < vars.length ? ` (${vivos.length}/${vars.length})` : '');
+            srcCls = ' vivo';
+        } else {
+            const sub = _stkSubida(cat.lastModified);
+            src = `☁️ Nube${sub ? ` · subido ${sub}` : ''}` +
+                (nube === 'chequeando' ? ' · chequeando…' : nube === 'bajando' ? ' · bajando la subida nueva…' : nube === 'recien' ? ' · ✓ recién actualizado' : '');
+        }
+        let btn;
+        if (ecom && ecom.corriendo) btn = `<button class="stk-ecom" id="stkEcom" disabled>Ecom ${ecom.hechos}/${ecom.total}…</button>`;
+        else btn = `<button class="stk-ecom" id="stkEcom">⟳ Ecom en vivo</button>`;
+        const errEcom = ecom && !ecom.corriendo && ecom.error
+            ? `<div class="stk-ley" style="color:var(--orange)">⚠️ ${escHtml(ecom.error)}</div>` : '';
+
+        const thead = `<tr><th></th>${talles.map(t => `<th class="${t === talleYo ? 'yo' : ''}">${escHtml(talleTxt(t))}</th>`).join('')}</tr>`;
+        const filas = colores.map(c => {
+            const fila = porColor.get(c);
+            return `<tr class="${c === colorYo ? 'yo' : ''}${totalColor(c) <= 0 ? ' sin' : ''}">` +
+                `<td class="col">${escHtml(c === '—' ? 'sin color' : c)}</td>` +
+                talles.map(t => `<td class="${t === talleYo ? 'tyo' : ''}">${celda(fila.get(t))}</td>`).join('') + `</tr>`;
+        }).join('');
+
+        body.innerHTML =
+            `<div class="stk-art">${_fdThumb(sku, _getImgMap())}<div>` +
+                `<div class="stk-nom">${escHtml(yo.titulo)}</div>` +
+                `<div class="stk-compro">Compró: <b>${escHtml([yo.color, yo.talle].filter(Boolean).join(' · ') || sku)}</b></div>` +
+            `</div></div>` +
+            `<div class="stk-bar"><span class="stk-src${srcCls}">${src}</span>${btn}</div>` +
+            errEcom +
+            (resp ? `<div class="stk-resp">${resp}</div>` : '') +
+            `<div class="stk-wrap"><table class="stk-tabla"><thead>${thead}</thead><tbody>${filas}</tbody></table></div>` +
+            `<div class="stk-ley">Recuadro amarillo = lo que compró · <span style="color:var(--green)">verde</span> hay · ` +
+            `<span style="color:var(--orange)">naranja</span> 1-3 · gris = 0 · tocá un número para copiar el SKU.` +
+            `${vivos.length ? ' Subrayado = Ecom distinto a la nube.' : ' La nube es la última subida: tocá "Ecom en vivo" para el stock real.'}</div>`;
+    }
+
+    // Stock REAL de Ecom para todas las variantes del artículo (de a 6 en paralelo).
+    // Primero lo que más importa: el SKU comprado, su color y su talle.
+    async function _stkEcomVivo() {
+        if (!_stkActual || (_stkActual.ecom && _stkActual.ecom.corriendo)) return;
+        const sku0 = _stkActual.sku;
+        const cat = buildStockCatalog();
+        const yo = cat && cat.bySku[sku0];
+        if (!yo) return;
+        const vars = _catPorArticulo().get(yo.titulo) || [];
+        const prio = v => v.sku === sku0 ? 0 : (v.color === yo.color || v.talle === yo.talle) ? 1 : 2;
+        const cola = vars.slice().sort((a, b) => prio(a) - prio(b));
+        const ecom = { corriendo: true, hechos: 0, total: cola.length, error: '' };
+        _stkActual.ecom = ecom;
+        let fallos = 0, noEsta = 0, ultErr = '', pend = null;
+        const redibujar = () => {   // agrupa redibujos (llegan muchas respuestas seguidas)
+            if (pend) return;
+            pend = setTimeout(() => { pend = null; if (_stkActual && _stkActual.sku === sku0) _stkRender(); }, 120);
+        };
+        _stkRender();
+        await _enPool(cola, 6, async v => {
+            try {
+                const r = await fetchConTimeout(`${ECOMM_PROXY}/get-stock?sku=${encodeURIComponent(v.sku)}`, { cache: 'no-store' }, 15000);
+                const d = await r.json().catch(() => null);
+                if (d && !d.error && d.stock !== undefined && d.stock !== null) {
+                    _stkVivo.set(v.sku, { stock: Number(d.stock), t: Date.now() });
+                } else if (r.status === 404) {
+                    noEsta++;                                   // ese SKU no existe en Ecom
+                } else {
+                    fallos++; ultErr = (d && d.error) || `HTTP ${r.status}`;
+                }
+            } catch (e) { fallos++; ultErr = 'sin respuesta'; }
+            ecom.hechos++;
+            redibujar();
+        });
+        ecom.corriendo = false;
+        if (fallos) ecom.error = fallos >= cola.length - noEsta
+            ? `Ecom no respondió (${ultErr}). Si sigue, entrá a Ecom para renovar la sesión.`
+            : `${fallos} SKU sin respuesta de Ecom (quedan con el dato de la nube).`;
+        else if (noEsta) ecom.error = `${noEsta} SKU no están en Ecom (quedan con el dato de la nube).`;
+        clearTimeout(pend);
+        if (_stkActual && _stkActual.sku === sku0) _stkRender();
+    }
+
     function abrirBuscador() {
         document.getElementById('buscarModal').classList.add('open');
         // Focus SINCRÓNICO: en el celular el teclado solo se abre si el focus ocurre
@@ -5956,6 +6245,8 @@
             if (res._lpHecho) { res._lpHecho = false; e.preventDefault(); return; }   // fue mantener apretado
             const pa = e.target.closest('[data-prep-abrir]');
             if (pa) { _prepAbrir(pa.closest('.bq-venta').dataset.prep); return; }
+            const stk = e.target.closest('[data-stock-sku]');
+            if (stk) { abrirStockArticulo(stk.dataset.stockSku); return; }
             const cp = e.target.closest('[data-copy]');
             if (cp) {
                 if (navigator.clipboard) navigator.clipboard.writeText(cp.dataset.copy).catch(() => {});
@@ -6053,7 +6344,10 @@
         });
     }
 
-    const RESUMEN_SKU_KEY   = 'resumen_sku_catalog_v1';
+    // v2: el catálogo ahora guarda también el STOCK y la fecha de subida (lastModified),
+    // para ver la disponibilidad de otros colores/talles desde la lupa.
+    const RESUMEN_SKU_KEY   = 'resumen_sku_catalog_v2';
+    try { sessionStorage.removeItem('resumen_sku_catalog_v1'); } catch (e) {} // formato viejo (sin stock)
     const RESUMEN_PACKS_KEY = 'resumen_packmap_v1';
     const RESUMEN_IMG_KEY   = 'resumen_imgmap_v1';
     const RESUMEN_SKU_TTL   = 12 * 60 * 60 * 1000; // 12 horas
@@ -6092,6 +6386,10 @@
     async function _idbSet(k, v) {
         try { (await _idb()).transaction('kv', 'readwrite').objectStore('kv').put(v, k); } catch (e) {}
     }
+    async function _idbDel(k) {
+        try { (await _idb()).transaction('kv', 'readwrite').objectStore('kv').delete(k); } catch (e) {}
+    }
+    _idbDel('resumen_sku_catalog_v1'); // formato viejo (sin stock): liberar ~1,5 MB
 
     // Edad de un caché sin parsear el JSON entero (fetchedAt va al final del string).
     function _edadCat(key) {
@@ -6147,9 +6445,11 @@
                 // Solo los campos necesarios para SKU lookup (reduce ~70% el tamaño)
                 const slim = dp.products.map(p => ({
                     codigo: p.codigo, titulo: p.titulo || p.articulo || '',
-                    color: p.color || '', talle: p.talle || ''
+                    color: p.color || '', talle: p.talle || '',
+                    stock: p.stock   // para el panel de stock de otros colores/talles
                 }));
-                _catRaw = guardar(RESUMEN_SKU_KEY, { products: slim, fetchedAt: Date.now() });
+                // lastModified = cuándo se subió el stock a la nube (fetchedAt va ÚLTIMO: _edadCat lo lee del final)
+                _catRaw = guardar(RESUMEN_SKU_KEY, { products: slim, lastModified: dp.lastModified || null, fetchedAt: Date.now() });
             }
             if (dpk && dpk.success && dpk.packs) {
                 _packMapMem = dpk.packs;
@@ -6195,19 +6495,24 @@
             const src = own || localStorage.getItem('mikra_products');
             if (!src) return null;
             if (src === _catMemSrc) return _catMem;
-            let prods = null;
-            try { prods = own ? JSON.parse(own).products : JSON.parse(src); } catch (e) {}
+            let prods = null, lastModified = null;
+            try {
+                const parsed = JSON.parse(src);
+                if (own) { prods = parsed.products; lastModified = parsed.lastModified || null; }
+                else prods = parsed;
+            } catch (e) {}
             if (!prods && own) { const fb = localStorage.getItem('mikra_products'); if (fb) prods = JSON.parse(fb); }
             if (!Array.isArray(prods)) return null;
-            const bySku = {}; // codigo → {titulo, color, talle}
+            const bySku = {}; // codigo → {titulo, color, talle, stock}
             prods.forEach(p => {
                 if (p.codigo) bySku[String(p.codigo)] = {
                     titulo: p.titulo || p.articulo || '',
                     color:  p.color  || '',
-                    talle:  p.talle  || ''
+                    talle:  p.talle  || '',
+                    stock:  p.stock
                 };
             });
-            _catMem = { bySku };
+            _catMem = { bySku, lastModified };
             _catMemSrc = src;
             return _catMem;
         } catch (e) { return null; }
