@@ -1,5 +1,5 @@
 // ─── Cambiá este número cada vez que hacés deploy ───────────────────────────
-const CACHE_VERSION = 4;
+const CACHE_VERSION = 5;
 // ─────────────────────────────────────────────────────────────────────────────
 
 const CACHE_NAME = `despachos-v${CACHE_VERSION}`;
@@ -31,6 +31,7 @@ self.addEventListener('activate', event => {
 
 // ── FETCH ─────────────────────────────────────────────────────────────────────
 self.addEventListener('fetch', event => {
+  if (event.request.method !== 'GET') return; // POST & cía: directo a la red (no se cachean)
   const url = new URL(event.request.url);
 
   // API calls: siempre network, nunca caché
@@ -42,7 +43,10 @@ self.addEventListener('fetch', event => {
   // Así siempre ve la versión nueva cuando hay conexión.
   if (url.pathname === '/' || url.pathname.endsWith('/index.html') || url.pathname.endsWith('/')) {
     event.respondWith(
-      fetch(event.request)
+      // cache:'no-cache' = preguntarle SIEMPRE a GitHub si hay versión nueva (si no
+      // cambió responde "304", rapidísimo). Sin esto, el caché del navegador (GitHub
+      // pone max-age=600) servía la versión VIEJA hasta 10 minutos después de subirla.
+      fetch(event.request.url, { cache: 'no-cache', credentials: 'same-origin' })
         .then(response => {
           // Guardamos la versión nueva en caché
           if (response.ok) {
@@ -51,7 +55,8 @@ self.addEventListener('fetch', event => {
           }
           return response;
         })
-        .catch(() => caches.match(event.request)) // offline: servir lo que hay
+        // offline: servir lo que hay (aunque la URL traiga ?algo)
+        .catch(() => caches.match(event.request, { ignoreSearch: true }))
     );
     return;
   }
