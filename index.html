@@ -6050,8 +6050,63 @@
         try { return typeof items === 'string' ? JSON.parse(items) : (items || []); } catch (e) { return []; }
     }
     const _prepGrande = u => String(u || '').replace(/-I\.jpg$/, '-V.jpg');   // 320 px
-    function _prepItemsHTML(items) {
+    // Foto del catálogo (…_2X_…-O.jpg, 1200 px) → la chica de 90 px (-I) que usa el historial
+    const _imgChica = u => String(u || '').replace('D_NQ_NP_2X_', 'D_NQ_NP_').replace(/-[A-Z]\.(jpg|webp|png)$/, '-I.jpg');
+
+    // El historial guarda lo que dice el troquel (nombre · color · talle), sin SKU. Para
+    // reconocerlo: mismo nombre/color/talle en el catálogo → SKU. El troquel nuevo trae
+    // espacios duros y el "-" como guion blando (­).
+    const _limpioNom = s => String(s || '').replace(/­/g, '-').replace(/\s+/g, ' ').trim();
+    const _normNom = s => _limpioNom(s).toLowerCase();
+    let _nomIdx = null, _nomIdxCat = null;
+    function _skuPorNombre(cat, n, c, t) {
+        if (_nomIdxCat !== cat) {
+            _nomIdx = new Map();
+            for (const [sku, e] of Object.entries(cat.bySku)) {
+                const k = _normNom(e.titulo) + '|' + _normNom(e.color) + '|' + _normNom(e.talle);
+                if (!_nomIdx.has(k)) _nomIdx.set(k, sku);
+            }
+            _nomIdxCat = cat;
+        }
+        return _nomIdx.get(_normNom(n) + '|' + _normNom(c) + '|' + _normNom(t)) || '';
+    }
+
+    // Artículos de una etiqueta del historial, con los PACKS abiertos igual que en
+    // "Para preparar" (_desglosarProducto + tabla de packs de Cloudflare) y la foto de
+    // cada artículo (tabla de imágenes por SKU). Los iguales se juntan (X2 del mismo → ×2).
+    // Sin catálogo cargado, queda como vino.
+    function _prepDesarmar(items) {
         const its = _prepItems(items);
+        const cat = buildStockCatalog(), packs = _getPackMap(), imgs = _getImgMap() || {};
+        if (!its.length || !cat || !packs) return its;
+        const out = [], junto = new Map();
+        for (const i of its) {
+            const sku = i.s || _skuPorNombre(cat, i.n, i.c, i.t);
+            const filas = (sku && packs[sku])
+                ? _desglosarProducto({ sku, cantidad: +i.q || 1, titulo: i.n }, cat).map(f => ({
+                    n: f.nombre, c: f.color, t: f.talle, q: (f.cantidad || 1) * (f.mult || 1),
+                    img: imgs[f.sku] ? _imgChica(imgs[f.sku]) : (i.img || '') }))
+                : [{ ...i, n: _limpioNom(i.n), c: _limpioNom(i.c),
+                     img: i.img || (sku && imgs[sku] ? _imgChica(imgs[sku]) : '') }];
+            for (const f of filas) {
+                const k = _normNom(f.n) + '|' + _normNom(f.c) + '|' + _normNom(f.t);
+                const ya = junto.get(k);
+                if (ya) ya.q = (+ya.q || 1) + (+f.q || 1);
+                else { const g = { ...f, q: +f.q || 1 }; junto.set(k, g); out.push(g); }
+            }
+        }
+        return out;
+    }
+    // Una vez por fila (la tanda se repinta con cada letra del filtro)
+    function _prepItsDe(f) {
+        if (f._its) return f._its;
+        const its = _prepDesarmar(f.items);
+        if (buildStockCatalog() && _getPackMap()) f._its = its;
+        return its;
+    }
+
+    function _prepItemsHTML(items) {
+        const its = _prepDesarmar(items);
         if (!its.length) return '';
         return '<div class="prep-its">' + its.map(i => `<div class="prep-it">` +
             (i.img ? `<img loading="lazy" src="${escHtml(_prepGrande(i.img))}" alt="">` : '<div class="sin"></div>') +
@@ -6071,12 +6126,12 @@
 
     function _pdSinAcento(t) { return String(t || '').toUpperCase().normalize('NFD').replace(/[\u0300-\u036f]/g, ''); }
     function _pdTexto(f) {
-        return _pdSinAcento((f.busca || '') + ' ' + _prepItems(f.items).map(i => `${i.n} ${i.c} ${i.t}`).join(' '));
+        return _pdSinAcento((f.busca || '') + ' ' + _prepItsDe(f).map(i => `${i.n} ${i.c} ${i.t}`).join(' '));
     }
 
     function _pdTileHTML(f, k) {
         const e = _prepHd(f.est);
-        const its = _prepItems(f.items), conFoto = its.filter(i => i.img);
+        const its = _prepItsDe(f), conFoto = its.filter(i => i.img);
         const max = conFoto.length > 4 ? 3 : 4;
         const fotos = !its.length ? '<div class="fotos uno"><div class="vacia">sin detalle</div></div>'
             : !conFoto.length ? `<div class="fotos uno"><div class="vacia">${escHtml(its[0].n)}</div></div>`
