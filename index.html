@@ -1553,7 +1553,11 @@
         .bq-bar input:focus { border-color: var(--yellow); }
         .bq-bar button { padding: 0 16px; border-radius: 10px; border: none; background: var(--yellow);
             color: #000; font-weight: 800; font-size: 14px; font-family: inherit; cursor: pointer; }
+        .bq-bar button.bq-pegar { padding: 0 11px; background: var(--surface-2); color: var(--text);
+            border: 1px solid var(--border-bright); font-weight: 700; white-space: nowrap; }
+        .bq-bar button.bq-pegar:active { border-color: var(--yellow); }
         .bq-hint { font-size: 10.5px; color: var(--muted); margin: 2px 2px 10px; }
+        .bq-hint.aviso { color: var(--yellow); }
         .bq-loading { text-align: center; color: var(--muted-2); font-size: 13px; padding: 24px 0; }
         .bq-loading b { color: var(--text); }
         #buscarResult { display: flex; flex-direction: column; gap: 10px; }
@@ -2146,9 +2150,10 @@
             <div class="bq-bar">
                 <input id="buscarInput" type="search" autocomplete="off" autocapitalize="off" spellcheck="false"
                        placeholder="Usuario, nº de venta, pack o envío">
+                <button id="buscarPegar" class="bq-pegar" title="Pegar lo copiado y buscar">📋 Pegar</button>
                 <button id="buscarGo">Buscar</button>
             </div>
-            <div class="bq-hint">Ej: NABCARAM · 2000015466939197 · 48229256374 · MEL…</div>
+            <div class="bq-hint" id="buscarHint">Ej: NABCARAM · 2000015466939197 · 48229256374 · MEL… · 📋 pega lo copiado y busca</div>
             <div id="buscarResult"></div>
         </div>
     </div>
@@ -6428,6 +6433,45 @@
         i.select();
     }
 
+    // Lo copiado suele venir con algo más: "vanesa doria (DOVA4632949)", "Venta #2000…",
+    // "Envío: 4822…", "@NICK", varios renglones. Queda solo lo que se busca.
+    function _bqLimpiarPegado(t) {
+        t = String(t || '').trim();
+        if (/^\{/.test(t)) return t;                                  // JSON del QR
+        t = (t.split(/\r?\n/).map(s => s.trim()).find(Boolean) || '').replace(/\s+/g, ' ');
+        const par = t.match(/\(([^()]{3,})\)\s*$/);                    // "Nombre (NICK)"
+        if (par) return par[1].trim();
+        const num = t.match(/(?:^|[\s#:])((?:MEL)?\d[\d ]{8,22}\d)\b/i);  // "Venta #2000…"
+        if (num && !/^[\d\s.\-#]+$/.test(t)) return num[1].replace(/\s+/g, '');
+        return t.replace(/^@/, '').slice(0, 80);
+    }
+
+    async function _bqPegarYBuscar() {
+        const inp = document.getElementById('buscarInput');
+        const hint = document.getElementById('buscarHint');
+        const avisar = msg => {
+            hint.textContent = msg; hint.classList.add('aviso');
+            inp.focus();
+            clearTimeout(hint._t);
+            hint._t = setTimeout(() => {
+                hint.classList.remove('aviso');
+                hint.textContent = 'Ej: NABCARAM · 2000015466939197 · 48229256374 · MEL… · 📋 pega lo copiado y busca';
+            }, 5000);
+        };
+        let txt = '';
+        try {
+            if (!navigator.clipboard || !navigator.clipboard.readText) throw new Error('sin permiso');
+            txt = await navigator.clipboard.readText();
+        } catch (e) {
+            return avisar('No me dejó leer lo copiado: mantené apretado el cuadro y tocá "Pegar" (o permití el portapapeles).');
+        }
+        const v = _bqLimpiarPegado(txt);
+        if (!v) return avisar('No hay nada copiado.');
+        inp.value = v;
+        inp.blur();                     // que no tape el resultado el teclado
+        buscarComprador(v);
+    }
+
     function inicializarBuscador() {
         const modal = document.getElementById('buscarModal');
         if (!modal) return;
@@ -6436,6 +6480,7 @@
         modal.onclick = e => { if (e.target === modal) modal.classList.remove('open'); };
         const ir = () => { const v = document.getElementById('buscarInput').value.trim(); if (v) buscarComprador(v); };
         document.getElementById('buscarGo').onclick = ir;
+        document.getElementById('buscarPegar').onclick = _bqPegarYBuscar;
         document.getElementById('buscarInput').addEventListener('keydown', e => { if (e.key === 'Enter') ir(); });
         _prepLongPress(document.getElementById('buscarResult'));
         document.getElementById('buscarResult').addEventListener('click', e => {
