@@ -5876,9 +5876,9 @@
                 const cta = CUENTAS.find(c => c.nombre === b.dataset.cta);
                 b.disabled = true; b.textContent = '📎 Bajando…';
                 try {
-                    const { access_token } = await getToken(cta);
-                    const r = await fetchConTimeout(`${cta.proxy}/api/messages/attachments/${encodeURIComponent(b.dataset.adj)}?tag=post_sale&site_id=MLA`,
-                        { headers: { Authorization: `Bearer ${access_token}` } }, 30000);
+                    const { access_token } = await getToken(cta);      // por la nube: el proxy rompe las fotos
+                    const r = await fetchConTimeout(`${HIST_URL}/api/adjunto?f=${encodeURIComponent(b.dataset.adj)}`,
+                        { headers: { 'X-Clave': _histClave(true), 'X-ML-Token': access_token } }, 30000);
                     if (!r.ok) throw new Error('HTTP ' + r.status);
                     const blob = await r.blob(), url = URL.createObjectURL(blob);
                     if (/^image\//.test(blob.type)) { const img = document.createElement('img'); img.src = url; img.className = 'bm-adj-img'; b.replaceWith(img); }
