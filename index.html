@@ -5960,7 +5960,8 @@
                 if (!confirm(`¿Mandarle este mensaje a ${nick}?\n\n${t}`)) return;
                 const b = document.getElementById('bmEnviar'); b.disabled = true; b.textContent = 'Enviando…';
                 try {
-                    await _mandarMensajeML(ctaNombre, venta, t);
+                    const otro = msgs.map(m => String((m.from || {}).user_id) === uid ? (m.to || {}).user_id : (m.from || {}).user_id).find(Boolean);
+                    await _mandarMensajeML(ctaNombre, venta, t, otro ? String(otro) : '');
                     _msgN.set(`${ctaNombre}|${venta}`, msgs.length + 1);
                     b.textContent = '✓ Enviado';
                     await sleep(1500);                                   // que ML lo registre antes de recargar
@@ -5984,12 +5985,12 @@
         try { v ? localStorage.setItem(_CLAVE_STOCK_LS, v) : localStorage.removeItem(_CLAVE_STOCK_LS); } catch (e) {}
         return v;
     }
-    async function _mandarMensajeML(cuenta, venta, texto) {
+    async function _mandarMensajeML(cuenta, venta, texto, buyerId) {
         for (let i = 0; i < 4; i++) {
             if (!_claveStock() && !_pedirClaveStock(i > 0)) throw new Error('sin clave, no se mandó nada');
             const r = await fetchConTimeout(`${ECOMM_PROXY}/ml-mensaje`, { method: 'POST',
                 headers: { 'Content-Type': 'application/json', 'X-Clave': _claveStock() },
-                body: JSON.stringify({ cuenta: String(cuenta || '').toLowerCase(), venta, texto }) }, 30000);
+                body: JSON.stringify({ cuenta: String(cuenta || '').toLowerCase(), venta, texto, buyer_id: buyerId || '' }) }, 30000);
             if (r.status === 401) {                    // clave rechazada: no se mandó nada → pedirla de nuevo
                 try { localStorage.removeItem(_CLAVE_STOCK_LS); } catch (e) {}
                 if (!_pedirClaveStock(true)) throw new Error('sin clave, no se mandó nada');
