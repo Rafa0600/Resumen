@@ -6103,6 +6103,10 @@
             hora: document.getElementById('avHora').value || '09:00',
             nombre: `Resumen · ${/Android/.test(u) ? 'Android' : /iPhone|iPad/.test(u) ? 'iPhone' : 'PC'}` }, true);
         if (!r.ok) throw new Error(r.error || 'no se pudo anotar');
+        // aviso de confirmación al toque (si no llega, ya se sabe que algo falla)
+        const c = await _histPost('/api/push/probar', { endpoint: j.endpoint, app: 'resumen', alta: true,
+            hora: document.getElementById('avHora').value || '09:00' }, false).catch(() => null);
+        return !!(c && c.ok);
     }
 
     async function _avDesactivar() {
@@ -6119,7 +6123,11 @@
         sw.onchange = async () => {
             sw.disabled = true;
             try {
-                if (sw.checked) { await _avActivar(); await _avPintar(); _avMsg('🔔 Listo. Tocá "🧪 Prueba" para ver si te llegan.', 'ok'); }
+                if (sw.checked) {
+                    const conf = await _avActivar(); await _avPintar();
+                    _avMsg(conf ? '🔔 Listo: te mandé un aviso de confirmación (llega en segundos).\nPara ver si llegan seguido, tocá "🧪 Prueba".'
+                                : '🔔 Anotado. Tocá "🧪 Prueba" para ver si te llegan.', 'ok');
+                }
                 else { await _avDesactivar(); await _avPintar(); _avMsg('🔕 Avisos apagados en este celu.'); }
             } catch (e) {
                 await _avPintar();
