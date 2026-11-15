@@ -1,5 +1,5 @@
 // ─── Cambiá este número cada vez que hacés deploy ───────────────────────────
-const CACHE_VERSION = 5;
+const CACHE_VERSION = 6;
 // ─────────────────────────────────────────────────────────────────────────────
 
 const CACHE_NAME = `despachos-v${CACHE_VERSION}`;
@@ -79,4 +79,29 @@ self.addEventListener('fetch', event => {
 // ── Mensaje desde la página para forzar update ───────────────────────────────
 self.addEventListener('message', event => {
   if (event.data === 'SKIP_WAITING') self.skipWaiting();
+});
+
+// ── Avisos al celular (los manda el Worker mikra-historial; se activan con 🔔 en la app) ──
+// Resumen del día a la hora elegida (lun–vie) y la prueba de 1 aviso por minuto.
+self.addEventListener('push', event => {
+  let d = {};
+  try { d = event.data ? event.data.json() : {}; } catch (e) { d = { body: event.data ? event.data.text() : '' }; }
+  event.waitUntil(self.registration.showNotification(d.title || '📦 Despachos', {
+    body: d.body || '',
+    icon: 'icon-192.png',
+    badge: 'badge-96.png',
+    tag: d.tag || 'resumen',
+    renotify: true,
+    data: { url: d.url || './' },
+  }));
+});
+
+// Tocar el aviso → abre el Resumen (o lo trae al frente si ya estaba abierto)
+self.addEventListener('notificationclick', event => {
+  event.notification.close();
+  const url = new URL((event.notification.data && event.notification.data.url) || './', self.registration.scope).href;
+  event.waitUntil(self.clients.matchAll({ type: 'window', includeUncontrolled: true }).then(ws => {
+    const w = ws.find(x => x.url.startsWith(self.registration.scope));
+    return w ? w.focus() : self.clients.openWindow(url);
+  }));
 });

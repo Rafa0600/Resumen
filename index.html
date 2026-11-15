@@ -1217,6 +1217,20 @@
             font-size: 15px; text-align: center;
         }
         .num-input:focus { outline: none; border-color: var(--yellow); }
+        /* Avisos al celular (⚙️ Ajustes) */
+        .av-hora { width: 124px; padding: 8px 6px; }
+        .av-btns { display: flex; flex-direction: column; gap: 8px; margin-top: 10px; }
+        .av-btn {
+            background: var(--surface-2); border: 1px solid var(--border-bright);
+            border-radius: 10px; color: var(--text); padding: 11px 12px;
+            font-family: inherit; font-size: 13px; text-align: left; cursor: pointer;
+        }
+        .av-btn:active { border-color: var(--yellow); }
+        .av-btn.on { border-color: var(--yellow); color: var(--yellow); }
+        .av-btn:disabled { opacity: .5; }
+        .av-msg { font-size: 12px; color: var(--muted); margin-top: 8px; line-height: 1.45; white-space: pre-line; }
+        .av-msg.ok { color: var(--green); }
+        .av-msg.err { color: var(--red); }
 
         /* switch */
         .switch { position: relative; width: 44px; height: 25px; flex-shrink: 0; }
@@ -2053,6 +2067,25 @@
                     <div class="set-label">📡 Flex a escanear<small>impresos sin escanear, arriba a un costado</small></div>
                     <label class="switch"><input type="checkbox" id="prefEscanear"><span class="slider"></span></label>
                 </div>
+            </div>
+
+            <div class="set-section" id="avisosSec">
+                <div class="set-section-title">🔔 Avisos al celular</div>
+                <div class="set-row">
+                    <div class="set-label">Resumen del día<small id="avSub">lun a vie · cuántos paquetes hay, a qué hora pasa la colecta y a qué hora despachar</small></div>
+                    <label class="switch"><input type="checkbox" id="prefAvisos"><span class="slider"></span></label>
+                </div>
+                <div id="avExtra" style="display:none">
+                    <div class="set-row">
+                        <div class="set-label">Hora del aviso<small>de lunes a viernes</small></div>
+                        <input type="time" id="avHora" class="num-input av-hora" value="09:00" step="300">
+                    </div>
+                    <div class="av-btns">
+                        <button class="av-btn" id="avPrueba">🧪 Prueba: 1 aviso por minuto, 10 minutos</button>
+                        <button class="av-btn" id="avAhora">📦 Mandarme el resumen ahora</button>
+                    </div>
+                </div>
+                <div class="av-msg" id="avMsg"></div>
             </div>
 
             <div class="set-section">
@@ -5851,6 +5884,172 @@
         return r.ok ? r.json() : null;
     }
 
+    async function _histPost(path, body, pedir) {
+        let c = _histClave(pedir);
+        if (!c) { const e = new Error('falta la clave del historial'); e.clave = true; throw e; }
+        const go = k => fetch(HIST_URL + path, { method: 'POST', headers: { 'X-Clave': k, 'Content-Type': 'application/json' }, body: JSON.stringify(body || {}) });
+        let r = await go(c);
+        if (r.status === 401) {
+            try { localStorage.removeItem('clave_hist'); } catch (e) {}
+            c = pedir ? _histClave(true) : '';
+            if (!c) { const e = new Error('clave incorrecta'); e.clave = true; throw e; }
+            r = await go(c);
+        }
+        const j = await r.json().catch(() => ({}));
+        if (!r.ok && !j.error) j.error = 'error ' + r.status;
+        return j;
+    }
+
+    // ══════════════════════════════════════════════
+    //  AVISOS AL CELULAR (⚙️ Ajustes → 🔔). Vienen APAGADOS: solo se anota este celu
+    //  cuando se prende el switch. Los manda el Worker mikra-historial (cron cada minuto):
+    //  lun–vie a la hora elegida → paquetes para imprimir + colecta (Mikra) / despacho (Chaya).
+    //  Misma clave VAPID que la app Cambios; el sw.js del Resumen muestra el aviso.
+    // ══════════════════════════════════════════════
+    const VAPID_PUBLIC = 'BOF91aLGKbOwpVo91aDXqSfIMzJxtN7TEbmcemnFH0ToJJDqPs77h5xXg9WGXfJptacsiFL7XNT6egE1avkXeEw';
+    const _avSoportado = () => 'serviceWorker' in navigator && 'PushManager' in window && 'Notification' in window && window.isSecureContext;
+    const _b64uDec = t => { t = t.replace(/-/g, '+').replace(/_/g, '/'); while (t.length % 4) t += '='; return Uint8Array.from(atob(t), ch => ch.charCodeAt(0)); };
+    const _avHHMM = ms => new Date(ms).toLocaleTimeString('es-AR', { hour: '2-digit', minute: '2-digit', hour12: false, timeZone: 'America/Argentina/Buenos_Aires' });
+    let _avPruebaHasta = 0, _avTimer = null;
+
+    async function _avReg() {
+        return Promise.race([navigator.serviceWorker.ready, new Promise(r => setTimeout(() => r(null), 5000))]);
+    }
+    async function _avSub() {
+        if (!_avSoportado() || Notification.permission !== 'granted') return null;
+        try { const reg = await _avReg(); return reg ? await reg.pushManager.getSubscription() : null; } catch (e) { return null; }
+    }
+    function _avMsg(t, cls) {
+        const m = document.getElementById('avMsg');
+        if (m) { m.textContent = t || ''; m.className = 'av-msg' + (cls ? ' ' + cls : ''); }
+    }
+    function _avBotonPrueba() {
+        const b = document.getElementById('avPrueba');
+        if (!b) return;
+        const enCurso = _avPruebaHasta > Date.now();
+        b.classList.toggle('on', enCurso);
+        b.textContent = enCurso ? `⏹ Parar la prueba (llega 1 por minuto hasta las ${_avHHMM(_avPruebaHasta)})` : '🧪 Prueba: 1 aviso por minuto, 10 minutos';
+        clearTimeout(_avTimer);
+        if (enCurso) _avTimer = setTimeout(_avBotonPrueba, Math.min(_avPruebaHasta - Date.now() + 500, 60000));
+    }
+
+    // Pinta el switch y la hora según lo que hay en ESTE celu (y en la nube)
+    async function _avPintar() {
+        const sw = document.getElementById('prefAvisos'), extra = document.getElementById('avExtra');
+        if (!sw) return;
+        if (!_avSoportado()) {
+            sw.checked = false; sw.disabled = true; extra.style.display = 'none';
+            return _avMsg('Acá no se pueden recibir avisos. Abrilo desde la app instalada en el celu.');
+        }
+        if (Notification.permission === 'denied') {
+            sw.checked = false; extra.style.display = 'none';
+            return _avMsg('Los avisos están bloqueados para esta app. Activalos en Ajustes del celu → Apps → Despachos (o Chrome) → Notificaciones, y volvé a prender el switch.', 'err');
+        }
+        const sub = await _avSub();
+        sw.checked = !!sub; sw.disabled = false;
+        extra.style.display = sub ? '' : 'none';
+        if (!sub) { _avPruebaHasta = 0; _avBotonPrueba(); return _avMsg(''); }
+        try {
+            const r = await _histPost('/api/push/estado', { endpoint: sub.endpoint }, false);
+            if (r && r.sub) {
+                const hora = r.sub.hora || '09:00';
+                document.getElementById('avHora').value = hora;
+                _avPruebaHasta = r.sub.prueba_hasta ? r.sub.prueba_hasta + (Date.now() - (r.ahora || Date.now())) : 0;
+                document.getElementById('avSub').textContent = `lun a vie a las ${hora} · paquetes, colecta y despacho`;
+                _avMsg(r.sub.ultimo_ok ? `✓ Activados en este celu · último aviso entregado ${String(r.sub.ultimo_ok).slice(5, 16).replace('T', ' ')}` : '✓ Activados en este celu', 'ok');
+            } else if (r && r.ok === false && !r.error) {
+                _avMsg('Este celu no figura en la nube: apagá y prendé el switch.', 'err');
+            }
+        } catch (e) { /* sin clave o sin internet: queda el estado local */ }
+        _avBotonPrueba();
+    }
+
+    async function _avActivar() {
+        _avMsg('Pidiendo permiso al celu…');
+        if (await Notification.requestPermission() !== 'granted') throw new Error('No se dio el permiso de avisos.');
+        const reg = await _avReg();
+        if (!reg) throw new Error('la app no terminó de cargar; cerrala, abrila y probá de nuevo');
+        try { await reg.update(); } catch (e) {}           // que tome el sw.js nuevo (el que muestra los avisos)
+        let sub = await reg.pushManager.getSubscription();
+        if (sub && sub.options && sub.options.applicationServerKey) {   // anotado con otra clave → rehacer
+            const k = new Uint8Array(sub.options.applicationServerKey);
+            if (k.join() !== _b64uDec(VAPID_PUBLIC).join()) { await sub.unsubscribe(); sub = null; }
+        }
+        if (!sub) sub = await reg.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey: _b64uDec(VAPID_PUBLIC) });
+        const j = sub.toJSON(), u = navigator.userAgent;
+        _avMsg('Anotando este celu en la nube…');
+        const r = await _histPost('/api/push/suscribir', { endpoint: j.endpoint, keys: j.keys, app: 'resumen',
+            hora: document.getElementById('avHora').value || '09:00',
+            nombre: `Resumen · ${/Android/.test(u) ? 'Android' : /iPhone|iPad/.test(u) ? 'iPhone' : 'PC'}` }, true);
+        if (!r.ok) throw new Error(r.error || 'no se pudo anotar');
+    }
+
+    async function _avDesactivar() {
+        const sub = await _avSub();
+        if (sub) {
+            await _histPost('/api/push/borrar', { endpoint: sub.endpoint }, false).catch(() => {});
+            await sub.unsubscribe().catch(() => {});
+        }
+    }
+
+    function inicializarAvisos() {
+        const sw = document.getElementById('prefAvisos');
+        if (!sw) return;
+        sw.onchange = async () => {
+            sw.disabled = true;
+            try {
+                if (sw.checked) { await _avActivar(); await _avPintar(); _avMsg('🔔 Listo. Tocá "🧪 Prueba" para ver si te llegan.', 'ok'); }
+                else { await _avDesactivar(); await _avPintar(); _avMsg('🔕 Avisos apagados en este celu.'); }
+            } catch (e) {
+                await _avPintar();
+                _avMsg('No se pudo: ' + (e.message || e), 'err');
+            }
+            sw.disabled = false;
+        };
+        document.getElementById('avHora').onchange = async e => {
+            const h = e.target.value;
+            const sub = await _avSub();
+            if (!sub || !/^\d\d:\d\d$/.test(h)) return;
+            try {
+                const r = await _histPost('/api/push/hora', { endpoint: sub.endpoint, hora: h }, true);
+                if (!r.ok) throw new Error(r.error);
+                document.getElementById('avSub').textContent = `lun a vie a las ${h} · paquetes, colecta y despacho`;
+                _avMsg(`✓ Te aviso de lunes a viernes a las ${h}.`, 'ok');
+            } catch (err) { _avMsg('No se pudo cambiar la hora: ' + (err.message || err), 'err'); }
+        };
+        document.getElementById('avPrueba').onclick = async e => {
+            const b = e.currentTarget, sub = await _avSub();
+            if (!sub) return _avPintar();
+            const parar = _avPruebaHasta > Date.now();
+            b.disabled = true;
+            try {
+                const r = await _histPost('/api/push/prueba', { endpoint: sub.endpoint, minutos: parar ? 0 : 10 }, true);
+                if (r.error) throw new Error(r.error);
+                if (parar) { _avPruebaHasta = 0; _avMsg('Prueba parada.'); }
+                else {
+                    _avPruebaHasta = r.hasta || 0;
+                    _avMsg(r.ok ? `✓ Ya salió la 1ª. Llega una por minuto hasta las ${_avHHMM(_avPruebaHasta)}.\nCerrá la app y apagá la pantalla: tienen que seguir llegando.`
+                                : 'La prueba arrancó pero el 1er aviso no salió. Apagá y prendé el switch.', r.ok ? 'ok' : 'err');
+                }
+            } catch (err) { _avMsg('No se pudo: ' + (err.message || err), 'err'); }
+            b.disabled = false;
+            _avBotonPrueba();
+        };
+        document.getElementById('avAhora').onclick = async e => {
+            const b = e.currentTarget, sub = await _avSub();
+            if (!sub) return _avPintar();
+            b.disabled = true;
+            _avMsg('Contando los paquetes de las dos cuentas…');
+            try {
+                const r = await _histPost('/api/push/probar', { endpoint: sub.endpoint, app: 'resumen' }, true);
+                if (r.error) throw new Error(r.error);
+                const d = r.datos || {};
+                _avMsg(r.ok ? `✓ Enviado:\n${d.title || ''}\n${d.body || ''}` : 'No salió el aviso. Apagá y prendé el switch.', r.ok ? 'ok' : 'err');
+            } catch (err) { _avMsg('No se pudo: ' + (err.message || err), 'err'); }
+            b.disabled = false;
+        };
+    }
+
     // ══════════════════════════════════════════════
     //  IMPRESOS POR DÍA (ⓘ junto a "Para imprimir")
     //  Es el contador "HOY: 🏍 FLEX n · 📦 CORREO n = TOTAL" del programa Etiquetas ML,
@@ -7185,7 +7384,7 @@
 
     function inicializarAjustes() {
         const modal = document.getElementById('settingsModal');
-        document.getElementById('gearBtn').onclick = () => { sincronizarControles(); modal.classList.add('open'); };
+        document.getElementById('gearBtn').onclick = () => { sincronizarControles(); modal.classList.add('open'); _avPintar(); };
         document.getElementById('settingsClose').onclick = () => modal.classList.remove('open');
         modal.onclick = e => { if (e.target === modal) modal.classList.remove('open'); };
 
@@ -7324,6 +7523,7 @@
 
     // ── INICIO ──
     inicializarAjustes();
+    inicializarAvisos();
     inicializarModalEscanear();
     inicializarModalFlexDesglose();
     inicializarModalPrueba();
