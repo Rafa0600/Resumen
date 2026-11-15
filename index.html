@@ -1599,6 +1599,21 @@
         .bq-tag.ok { background: rgba(52,211,153,.13); color: var(--green); }
         .bq-tag.bad { background: rgba(255,84,84,.16); color: var(--red); }
         .bq-tag.mono { font-family: 'Space Mono', monospace; cursor: pointer; }
+        .bq-tag.bq-msgs { background: rgba(64,196,255,.14); color: var(--blue); cursor: pointer; }
+        .bq-tag.bq-msgs[hidden] { display: none; }
+        /* Mensajes de la venta (chat) */
+        .bm-chat { display: flex; flex-direction: column; gap: 10px; max-height: 64dvh; overflow-y: auto; padding: 2px 2px 6px; }
+        .bm-msg { display: flex; flex-direction: column; max-width: 86%; }
+        .bm-msg.el { align-self: flex-start; }
+        .bm-msg.yo { align-self: flex-end; align-items: flex-end; }
+        .bm-burb { padding: 9px 12px; border-radius: 15px; font-size: 14.5px; line-height: 1.4; white-space: pre-wrap; overflow-wrap: anywhere; }
+        .bm-msg.el .bm-burb { background: var(--surface-2); border: 1px solid var(--border-bright); border-bottom-left-radius: 5px; }
+        .bm-msg.yo .bm-burb { background: rgba(255,230,0,.13); border: 1px solid rgba(255,230,0,.25); border-bottom-right-radius: 5px; }
+        .bm-mt { font-size: 10.5px; color: var(--muted); margin: 3px 5px 0; }
+        .bm-sub { font-size: 11.5px; color: var(--muted-2); margin: -2px 0 10px; }
+        .bm-adj { margin-top: 4px; border: 1px solid var(--border-bright); background: var(--surface-2); color: var(--blue);
+            border-radius: 10px; padding: 7px 10px; font-size: 12.5px; text-align: left; font-family: inherit; }
+        .bm-adj-img { margin-top: 4px; max-width: 100%; max-height: 300px; border-radius: 12px; }
         .bq-match { box-shadow: 0 0 0 2px var(--yellow); }
         .bq-match-lbl { font-size: 11.5px; font-weight: 800; color: var(--yellow); }
         .bq-buyer-btn { display: flex; flex-direction: column; align-items: flex-start; gap: 2px; width: 100%;
@@ -5769,6 +5784,8 @@
                     (orders.length > 1 ? `<span class="bq-tag">📦 pack · ${orders.length} ventas</span>` : '') +
                     `<span class="bq-tag">${unid} u</span>` +
                     (ship ? `<span class="bq-tag mono" data-copy="${escHtml(String(ship.id))}" title="Nº de envío · tocá para copiar">🚚 ${escHtml(String(ship.id))}</span>` : '') +
+                    // 💬 aparece solo si la venta tiene mensajes (se cuentan después de pintar)
+                    `<span class="bq-tag bq-msgs" data-msgs="${escHtml(v.key)}" data-cta="${escHtml(cta.nombre)}" hidden title="Ver los mensajes de esta venta">💬</span>` +
                 `</div>` +
                 `<div class="sc-items">${items}</div>` +
             `</div></div>`;
@@ -5810,8 +5827,112 @@
             '<div class="bq-lp-hint">Mantené apretada una compra para ver cuándo se armó 🕒</div>' +
             ventas.map(v => _bqVentaHTML(v, claves)).join('');
         _prepMarcar(res, seq);
+        _bqContarMensajes(res, seq);
         const m = res.querySelector('.bq-match');
         if (m) m.scrollIntoView({ block: 'center', behavior: 'smooth' });
+    }
+
+    // ══════════════════════════════════════════════
+    //  MENSAJES DE LA VENTA (los de ML, SIN marcarlos como leídos: mark_as_read=false)
+    //  En cada compra de la lupa aparece "💬 n" solo si tiene mensajes (una venta sin
+    //  mensajes sale "blocked" hasta que el comprador escribe → no se muestra nada).
+    // ══════════════════════════════════════════════
+    const _msgN = new Map();       // cuenta|venta → cantidad
+    const _msgPath = (venta, uid, extra) => `/api/messages/packs/${encodeURIComponent(venta)}/sellers/${uid}?tag=post_sale&mark_as_read=false${extra || ''}`;
+    async function _bqContarMensajes(res, seq) {
+        const tags = [...res.querySelectorAll('[data-msgs]')].slice(0, 30);
+        const pintar = (el, n) => { if (n > 0) { el.hidden = false; el.textContent = `💬 ${n}`; } };
+        const pend = [];
+        tags.forEach(el => {
+            const k = `${el.dataset.cta}|${el.dataset.msgs}`;
+            if (_msgN.has(k)) pintar(el, _msgN.get(k)); else pend.push(el);
+        });
+        await _enPool(pend, 3, async el => {
+            if (seq !== _bqSeq) return;
+            const cta = CUENTAS.find(c => c.nombre === el.dataset.cta);
+            if (!cta) return;
+            try {
+                const { user_id } = await getToken(cta);
+                const d = await _bqGet(cta, _msgPath(el.dataset.msgs, user_id, '&limit=1'));
+                const n = d ? Number((d.paging && d.paging.total) != null ? d.paging.total : (d.messages || []).length) || 0 : 0;
+                _msgN.set(`${el.dataset.cta}|${el.dataset.msgs}`, n);
+                if (seq === _bqSeq) pintar(el, n);
+            } catch (e) {}
+        });
+    }
+
+    function _bmOverlay() {
+        let ov = document.getElementById('bmOv');
+        if (!ov) {
+            ov = document.createElement('div');
+            ov.id = 'bmOv'; ov.className = 'prep-ov';
+            ov.innerHTML = '<div class="prep-sheet"><div class="prep-head"><span id="bmTit">💬 Mensajes</span>' +
+                '<button aria-label="Cerrar">×</button></div><div id="bmBody"></div></div>';
+            document.body.appendChild(ov);
+            ov.addEventListener('click', async e => {
+                if (e.target === ov || e.target.closest('.prep-head button')) { ov.classList.remove('open'); return; }
+                const b = e.target.closest('[data-adj]');              // foto/archivo que mandó el comprador
+                if (!b) return;
+                const cta = CUENTAS.find(c => c.nombre === b.dataset.cta);
+                b.disabled = true; b.textContent = '📎 Bajando…';
+                try {
+                    const { access_token } = await getToken(cta);
+                    const r = await fetchConTimeout(`${cta.proxy}/api/messages/attachments/${encodeURIComponent(b.dataset.adj)}?tag=post_sale&site_id=MLA`,
+                        { headers: { Authorization: `Bearer ${access_token}` } }, 30000);
+                    if (!r.ok) throw new Error('HTTP ' + r.status);
+                    const blob = await r.blob(), url = URL.createObjectURL(blob);
+                    if (/^image\//.test(blob.type)) { const img = document.createElement('img'); img.src = url; img.className = 'bm-adj-img'; b.replaceWith(img); }
+                    else { window.open(url, '_blank'); b.textContent = '📎 Abierto'; }
+                } catch (err) { b.textContent = '📎 No se pudo bajar (miralo en ML)'; }
+            });
+        }
+        ov.classList.add('open');
+        return document.getElementById('bmBody');
+    }
+
+    async function abrirMensajesVenta(ctaNombre, venta) {
+        const cta = CUENTAS.find(c => c.nombre === ctaNombre);
+        const body = _bmOverlay();
+        const nick = (document.querySelector('.bq-nick') || {}).firstChild;
+        document.getElementById('bmTit').textContent = '💬 ' + (nick ? String(nick.textContent).replace(/^👤\s*/, '').trim() : 'Mensajes');
+        const sub = `<div class="bm-sub">${escHtml(ctaNombre)} · venta #${escHtml(venta)} · no se marcan como leídos</div>`;
+        body.innerHTML = sub + '<div class="prep-vacio">Cargando mensajes…</div>';
+        let msgs = [], estado = null, uid = '';
+        try {
+            const { user_id } = await getToken(cta);
+            uid = String(user_id);
+            for (let off = 0; off < 300; off += 50) {
+                const d = await _bqGet(cta, _msgPath(venta, user_id, `&limit=50&offset=${off}`));
+                if (!d) break;
+                estado = d.conversation_status || estado;
+                msgs.push(...(d.messages || []));
+                if ((d.messages || []).length < 50) break;
+            }
+        } catch (e) {
+            body.innerHTML = sub + `<div class="prep-vacio">😕 No pude traer los mensajes: ${escHtml(e.message || e)}</div>`;
+            return;
+        }
+        const cuando = m => (m.message_date && (m.message_date.created || m.message_date.received)) || m.date_created || '';
+        msgs.sort((a, b) => String(cuando(a)).localeCompare(String(cuando(b))));     // del más viejo al más nuevo
+        const fecha = iso => {
+            const d = new Date(iso); if (isNaN(d)) return '';
+            return _bqFecha(iso).replace(/^hace \d+ días · /, '');
+        };
+        const bloq = msgs.length && estado && estado.status && estado.status !== 'active'
+            ? `<div class="bm-sub" style="color:var(--orange)">🔒 ML tiene esta conversación ${escHtml(estado.status === 'blocked' ? 'bloqueada' : estado.status)}: no se pueden mandar mensajes nuevos.</div>` : '';
+        const html = msgs.map(m => {
+            const yo = String((m.from || {}).user_id) === uid;
+            const md = m.message_date || {};
+            const adj = (m.message_attachments || []).map(a =>
+                `<button class="bm-adj" data-adj="${escHtml(a.filename)}" data-cta="${escHtml(ctaNombre)}">📎 ${escHtml(a.original_filename || 'Adjunto')} · ver</button>`).join('');
+            const visto = yo ? (md.read ? ' · ✓✓ lo leyó' : ' · enviado') : '';
+            return `<div class="bm-msg ${yo ? 'yo' : 'el'}">${m.text ? `<div class="bm-burb">${escHtml(m.text)}</div>` : ''}${adj}` +
+                `<div class="bm-mt">${yo ? 'Nosotros' : 'Comprador'} · ${escHtml(fecha(cuando(m)))}${visto}</div></div>`;
+        }).join('');
+        _msgN.set(`${ctaNombre}|${venta}`, msgs.length);
+        body.innerHTML = sub + bloq + (msgs.length ? `<div class="bm-chat" id="bmChat">${html}</div>`
+            : '<div class="prep-vacio">No hay mensajes en esta venta.</div>');
+        const ch = document.getElementById('bmChat'); if (ch) ch.scrollTop = ch.scrollHeight;       // abre en el último
     }
 
     function _bqElegirComprador(lista, q) {
@@ -6778,6 +6899,8 @@
             if (pa) { _prepAbrir(pa.closest('.bq-venta').dataset.prep); return; }
             const stk = e.target.closest('[data-stock-sku]');
             if (stk) { abrirStockArticulo(stk.dataset.stockSku); return; }
+            const ms = e.target.closest('[data-msgs]');
+            if (ms) { abrirMensajesVenta(ms.dataset.cta, ms.dataset.msgs); return; }
             const cp = e.target.closest('[data-copy]');
             if (cp) {
                 if (navigator.clipboard) navigator.clipboard.writeText(cp.dataset.copy).catch(() => {});
