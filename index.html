@@ -1662,6 +1662,13 @@
         .prep-adj { font-size: 12px; font-weight: 700; color: var(--green); margin-top: 4px; }
         .prep-meta { font-size: 11.5px; color: var(--muted); margin-top: 8px; }
         .prep-who { font-size: 13px; color: var(--text); margin-top: 6px; }
+        .prep-ids { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; }
+        .prep-cp { font-family: 'Space Mono', monospace; font-size: 12px; font-weight: 700; color: var(--text);
+            background: var(--surface-2); border: 1px solid var(--border-bright); border-radius: 8px;
+            padding: 7px 10px; cursor: pointer; max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+        .prep-cp i { font-style: normal; font-family: inherit; color: var(--yellow); font-size: 11px; margin-left: 4px; }
+        .prep-cp.ok { border-color: var(--green); }
+        .prep-cp.ok i { color: var(--green); }
         .prep-btn { width: 100%; margin-top: 10px; padding: 10px; border-radius: 10px; border: none;
             background: var(--surface); color: var(--text); font-weight: 700; font-family: inherit; cursor: pointer; }
         .prep-cuadros { display: flex; flex-wrap: wrap; gap: 3px; margin: 8px 0; }
@@ -6009,6 +6016,19 @@
         });
     }
 
+    // Copiar al portapapeles; si el navegador no deja (permiso/contexto), con el método viejo.
+    async function _copiarTexto(t) {
+        try { await navigator.clipboard.writeText(t); return true; } catch (e) {}
+        try {
+            const ta = document.createElement('textarea');
+            ta.value = t; ta.setAttribute('readonly', ''); ta.style.cssText = 'position:fixed;opacity:0;top:0';
+            document.body.appendChild(ta); ta.select();
+            const ok = document.execCommand('copy');
+            ta.remove();
+            return ok;
+        } catch (e) { return false; }
+    }
+
     function _prepOverlay() {
         let ov = document.getElementById('prepOv');
         if (!ov) {
@@ -6019,6 +6039,16 @@
             document.body.appendChild(ov);
             ov.addEventListener('click', e => {
                 if (e.target === ov || e.target.closest('.prep-head button')) ov.classList.remove('open');
+                const cp = e.target.closest('[data-copiar]');
+                if (cp) {
+                    _copiarTexto(cp.dataset.copiar).then(ok => {
+                        const i = cp.querySelector('i'), antes = i.textContent;
+                        i.textContent = ok ? '✓ copiado' : 'no se pudo';
+                        cp.classList.toggle('ok', ok);
+                        setTimeout(() => { i.textContent = antes; cp.classList.remove('ok'); }, 1500);
+                    });
+                    return;
+                }
                 const t = e.target.closest('[data-tanda]');
                 if (t) _prepTanda(t.dataset.tanda, +t.dataset.hoja);
             });
@@ -6039,6 +6069,10 @@
             (a && b ? `<div class="prep-cam">🎥 Mirar la cámara entre <b>${a.hm}</b> y <b>${b.hm}</b></div>` : '') +
             (+f.ajustado ? `<div class="prep-adj">📌 Hora ajustada mirando el video</div>` : '') +
             (f.comprador ? `<div class="prep-who">👤 ${escHtml(f.comprador)}${f.destino ? ' · ' + escHtml(f.destino) : ''}</div>` : '') +
+            ((f.venta || f.nick) ? `<div class="prep-ids">` +
+                (f.venta ? `<button class="prep-cp" data-copiar="${escHtml(f.venta)}" title="Copiar el nº de venta">🧾 Venta #${escHtml(f.venta)} <i>copiar</i></button>` : '') +
+                (f.nick ? `<button class="prep-cp" data-copiar="${escHtml(f.nick)}" title="Copiar el usuario">@${escHtml(f.nick)} <i>copiar</i></button>` : '') +
+                `</div>` : '') +
             _prepItemsHTML(f.items) +
             `<div class="prep-meta">Tanda impresa ${imp ? imp.hm : '?'} · hoja ${+f.hoja + 1} de ${escHtml(f.hojas)}` +
             (ti && tf ? ` · se armó de ${ti.hm} a ${tf.hm}` : '') + `</div>` +
