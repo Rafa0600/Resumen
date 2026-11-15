@@ -1614,6 +1614,15 @@
         .bm-adj { margin-top: 4px; border: 1px solid var(--border-bright); background: var(--surface-2); color: var(--blue);
             border-radius: 10px; padding: 7px 10px; font-size: 12.5px; text-align: left; font-family: inherit; }
         .bm-adj-img { margin-top: 4px; max-width: 100%; max-height: 300px; border-radius: 12px; }
+        .bm-redactar { margin-top: 12px; border-top: 1px solid var(--border); padding-top: 10px; }
+        .bm-redactar textarea { width: 100%; min-height: 70px; max-height: 160px; border-radius: 12px; border: 1px solid var(--border-bright);
+            background: var(--surface-2); color: var(--text); padding: 10px 12px; font-size: 15px; font-family: inherit; outline: none; resize: vertical; }
+        .bm-redactar textarea:focus { border-color: var(--yellow); }
+        .bm-pie { display: flex; align-items: center; justify-content: space-between; margin-top: 6px; }
+        .bm-pie span { font-size: 11.5px; color: var(--muted); font-family: 'Space Mono', monospace; }
+        .bm-pie button { height: 42px; padding: 0 22px; border-radius: 10px; border: none; background: var(--yellow); color: #000;
+            font-weight: 800; font-size: 15px; font-family: inherit; }
+        .bm-pie button:disabled { opacity: .6; }
         .bq-match { box-shadow: 0 0 0 2px var(--yellow); }
         .bq-match-lbl { font-size: 11.5px; font-weight: 800; color: var(--yellow); }
         .bq-buyer-btn { display: flex; flex-direction: column; align-items: flex-start; gap: 2px; width: 100%;
@@ -5930,9 +5939,67 @@
                 `<div class="bm-mt">${yo ? 'Nosotros' : 'Comprador'} · ${escHtml(fecha(cuando(m)))}${visto}</div></div>`;
         }).join('');
         _msgN.set(`${ctaNombre}|${venta}`, msgs.length);
+        // Escribir: solo si ML deja (conversación activa). Se manda por Ecomm con la clave del stock.
+        const activa = !!(estado && estado.status === 'active');
+        const escribir = activa
+            ? `<div class="bm-redactar"><textarea id="bmTxt" maxlength="350" placeholder="Escribile al comprador…"></textarea>` +
+              `<div class="bm-pie"><span id="bmCont">0/350</span><button id="bmEnviar">Enviar</button></div>` +
+              `<div class="bm-sub" style="margin:4px 0 0">Lo lee el comprador en Mercado Libre. Sin teléfonos, mails ni links.</div></div>`
+            : (msgs.length ? '' : `<div class="bm-sub">🔒 ${estado && estado.substatus && /initiated_by_seller/.test(estado.substatus)
+                ? 'Mercado Libre no deja escribirle hasta que el comprador mande un mensaje.' : 'Mercado Libre no deja mandar mensajes en esta venta.'}</div>`);
         body.innerHTML = sub + bloq + (msgs.length ? `<div class="bm-chat" id="bmChat">${html}</div>`
-            : '<div class="prep-vacio">No hay mensajes en esta venta.</div>');
+            : '<div class="prep-vacio">No hay mensajes en esta venta.</div>') + escribir;
         const ch = document.getElementById('bmChat'); if (ch) ch.scrollTop = ch.scrollHeight;       // abre en el último
+        const txt = document.getElementById('bmTxt');
+        if (txt) {
+            txt.oninput = () => { document.getElementById('bmCont').textContent = `${txt.value.length}/350`; };
+            document.getElementById('bmEnviar').onclick = async () => {
+                const t = txt.value.trim();
+                if (!t) return;
+                const nick = document.getElementById('bmTit').textContent.replace(/^💬\s*/, '');
+                if (!confirm(`¿Mandarle este mensaje a ${nick}?\n\n${t}`)) return;
+                const b = document.getElementById('bmEnviar'); b.disabled = true; b.textContent = 'Enviando…';
+                try {
+                    await _mandarMensajeML(ctaNombre, venta, t);
+                    _msgN.set(`${ctaNombre}|${venta}`, msgs.length + 1);
+                    b.textContent = '✓ Enviado';
+                    await sleep(1500);                                   // que ML lo registre antes de recargar
+                    abrirMensajesVenta(ctaNombre, venta);
+                } catch (e) {
+                    b.disabled = false; b.textContent = 'Enviar';
+                    alert('No se pudo mandar: ' + (e.message || e));
+                }
+            };
+        }
+    }
+
+    // ── Mandar mensajes: por la bandeja de Ecomm (los tokens de ML de las apps son solo
+    // lectura), con la MISMA clave que cambiar stock (localStorage mikra_clave_stock, la de
+    // Pedidos y Control de Stock en este mismo sitio). Sin clave no se manda nada.
+    const _CLAVE_STOCK_LS = 'mikra_clave_stock';
+    const _claveStock = () => { try { return localStorage.getItem(_CLAVE_STOCK_LS) || ''; } catch (e) { return ''; } };
+    function _pedirClaveStock(mal) {
+        const v = (prompt(mal ? '❌ Clave incorrecta. Clave para mandar mensajes (la misma de cambiar stock):'
+            : '🔒 Clave para mandar mensajes (la misma que usás para cambiar stock en Pedidos / Control de Stock):') || '').trim();
+        try { v ? localStorage.setItem(_CLAVE_STOCK_LS, v) : localStorage.removeItem(_CLAVE_STOCK_LS); } catch (e) {}
+        return v;
+    }
+    async function _mandarMensajeML(cuenta, venta, texto) {
+        for (let i = 0; i < 4; i++) {
+            if (!_claveStock() && !_pedirClaveStock(i > 0)) throw new Error('sin clave, no se mandó nada');
+            const r = await fetchConTimeout(`${ECOMM_PROXY}/ml-mensaje`, { method: 'POST',
+                headers: { 'Content-Type': 'application/json', 'X-Clave': _claveStock() },
+                body: JSON.stringify({ cuenta: String(cuenta || '').toLowerCase(), venta, texto }) }, 30000);
+            if (r.status === 401) {                    // clave rechazada: no se mandó nada → pedirla de nuevo
+                try { localStorage.removeItem(_CLAVE_STOCK_LS); } catch (e) {}
+                if (!_pedirClaveStock(true)) throw new Error('sin clave, no se mandó nada');
+                continue;
+            }
+            let d = null; try { d = await r.json(); } catch (e) {}
+            if (!r.ok || !d || !d.ok) throw new Error((d && d.error) || ('respondió ' + r.status));
+            return d;
+        }
+        throw new Error('clave incorrecta, no se mandó nada');
     }
 
     function _bqElegirComprador(lista, q) {
